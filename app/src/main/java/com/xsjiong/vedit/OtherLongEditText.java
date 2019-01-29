@@ -1,22 +1,15 @@
 package com.xsjiong.vedit;
 
-import android.annotation.TargetApi;
 import android.content.Context;
 import android.graphics.Canvas;
 import android.graphics.Color;
-import android.os.Build;
-import android.os.Handler;
-import android.text.Layout;
-import android.text.StaticLayout;
 import android.util.AttributeSet;
 import android.util.Log;
-import android.util.TypedValue;
 import android.view.Gravity;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.BaseAdapter;
 import android.widget.ListView;
-import android.widget.TextView;
 
 /**
  * Created by Vlad on 15.07.2016.
@@ -43,12 +36,6 @@ public class OtherLongEditText extends ListView {
 
 	public OtherLongEditText(Context context, AttributeSet attrs, int defStyleAttr) {
 		super(context, attrs, defStyleAttr);
-		init(attrs);
-	}
-
-	@TargetApi(Build.VERSION_CODES.LOLLIPOP)
-	public OtherLongEditText(Context context, AttributeSet attrs, int defStyleAttr, int defStyleRes) {
-		super(context, attrs, defStyleAttr, defStyleRes);
 		init(attrs);
 	}
 
@@ -102,10 +89,8 @@ public class OtherLongEditText extends ListView {
 	private class LongTextViewAdapter extends BaseAdapter {
 
 		private final Context context;
-		private final String text;
-		private final TextView textView;
-		private int itemsCount = 0;
-		private StaticLayout staticLayout;
+		private String[] content;
+		private final SingleTextView textView;
 
 
 		/**
@@ -114,44 +99,18 @@ public class OtherLongEditText extends ListView {
 		 */
 		public LongTextViewAdapter(Context context, String text) {
 			this.context = context;
-			this.text = text;
+			this.content = text.split("\n");
 
-			textView = new TextView(context);
-			textView.setMaxLines(maxLines);
-			textView.setIncludeFontPadding(false);
-			textView.setTextSize(TypedValue.COMPLEX_UNIT_PX, textSize);
-			textView.setTextColor(textColor);
-			textView.setGravity(gravity);
-
-			new Handler().post(new Runnable() {
-				@Override
-				public void run() {
-					init();
-				}
-			});
-
-		}
-
-		private void init() {
-			staticLayout = new StaticLayout(
-					text,
-					textView.getPaint(),
-					getWidth(),
-					Layout.Alignment.ALIGN_NORMAL,
-					1,
-					0,
-					true
-			);
-			itemsCount = staticLayout.getLineCount() / maxLines;
-			if (staticLayout.getLineCount() % maxLines > 0) {
-				itemsCount++;
-			}
-			notifyDataSetChanged();
+			textView = new SingleTextView(context);
+//			textView.setTextSize(TypedValue.COMPLEX_UNIT_PX, textSize);
+//			textView.setTextColor(textColor);
+//			textView.setGravity(gravity);
 		}
 
 		@Override
 		public int getCount() {
-			return itemsCount;
+			Log.i("ContentLength", content.length + "");
+			return content.length;
 		}
 
 		@Override
@@ -166,23 +125,12 @@ public class OtherLongEditText extends ListView {
 
 		@Override
 		public View getView(int position, View convertView, ViewGroup parent) {
-			TextView textView = (TextView) convertView;
+			Log.i("GetView", position + " " + content[position]);
+			SingleTextView textView = (SingleTextView) convertView;
 			if (textView == null) {
-				textView = new TextView(context);
-				textView.setMaxLines(maxLines);
-				textView.setIncludeFontPadding(false);
-				textView.setTextSize(TypedValue.COMPLEX_UNIT_PX, textSize);
-				textView.setTextColor(textColor);
-				textView.setGravity(gravity);
+				textView = new SingleTextView(context);
 			}
-			int startChar = staticLayout.getLineStart(position * maxLines);
-			int endChar;
-			if ((position + 1) * maxLines >= staticLayout.getLineCount()) {
-				endChar = text.length();
-			} else {
-				endChar = staticLayout.getLineStart((position + 1) * maxLines);
-			}
-			textView.setText(text.substring(startChar, endChar));
+			textView.setText(content[position]);
 			return textView;
 		}
 	}
