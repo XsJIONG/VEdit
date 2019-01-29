@@ -1,26 +1,32 @@
 package com.xsjiong.vedit;
 
 import android.content.Context;
-import android.graphics.Canvas;
-import android.graphics.Color;
-import android.graphics.Paint;
-import android.graphics.Typeface;
-import android.graphics.drawable.Drawable;
+import android.graphics.*;
 import android.text.TextPaint;
 import android.util.AttributeSet;
 import android.util.Log;
-import android.view.*;
+import android.view.MotionEvent;
+import android.view.VelocityTracker;
+import android.view.View;
+import android.view.ViewConfiguration;
 import android.widget.OverScroller;
 
-public class VEdit extends SurfaceView implements SurfaceHolder.Callback {
+import java.lang.ref.SoftReference;
+
+public class VEdit extends View {
+	public static final int MEASURE_STEP = 50;
+
 	private String S;
 	private TextPaint ContentPaint;
 	private Paint ViewPaint;
-	private SurfaceHolder H;
 	private float TextHeight;
-	private float YStart;
+	private float YPadding;
 	private int[] Enters = new int[257];
-	private int _minFling;
+
+	private int _minFling, _touchSlop;
+	private float YOffset;
+	// 这是个负数！这是个负数！！这是个负数！！！
+	private int ContentHeight;
 
 	public VEdit(Context cx) {
 		this(cx, null, 0);
@@ -36,20 +42,15 @@ public class VEdit extends SurfaceView implements SurfaceHolder.Callback {
 		ContentPaint = new TextPaint();
 		ContentPaint.setAntiAlias(true);
 		ContentPaint.setTextSize(50);
-		ContentPaint.setTextAlign(Paint.Align.LEFT);
 		ContentPaint.setColor(Color.BLACK);
-		ContentPaint.setTypeface(Typeface.MONOSPACE);
 		ViewPaint = new Paint();
 		ViewPaint.setStyle(Paint.Style.FILL);
 		ViewPaint.setColor(Color.WHITE);
-		H = getHolder();
-		H.addCallback(this);
-		setFocusable(true);
-		setFocusableInTouchMode(true);
 		_updateFontMetrics();
 		postInvalidate();
 		ViewConfiguration config = ViewConfiguration.get(cx);
 		_minFling = config.getScaledMinimumFlingVelocity();
+		_touchSlop = config.getScaledTouchSlop();
 		SpeedCalc = VelocityTracker.obtain();
 	}
 
@@ -63,8 +64,10 @@ public class VEdit extends SurfaceView implements SurfaceHolder.Callback {
 	private void _updateFontMetrics() {
 		Paint.FontMetrics m = ContentPaint.getFontMetrics();
 		TextHeight = m.descent - m.ascent;
-		YStart = -m.ascent;
+		YOffset = -m.ascent;
 		TABReplaceWidth = ContentPaint.measureText(TABReplace, 0, TABReplace.length);
+		// 实则是预留了5行！
+		ContentHeight = (int) -(TextHeight * (Enters[0] + 4));
 	}
 
 	public void setTextAntiAlias(boolean flag) {
@@ -100,70 +103,12 @@ public class VEdit extends SurfaceView implements SurfaceHolder.Callback {
 				Enters[Enters[0]] = i + 1;
 			}
 		/*if (Enters[Enters[0]] != s.length()) */
-		Enters[++Enters[0]] = s.length();
+		Enters[++Enters[0]] = s.length() + 1;
+		LINE_IMAGES = new SoftReference[Enters[0]];
+		ContentHeight = (int) -(TextHeight * (Enters[0] + 4));
 		invalidate();
 	}
 
-	private boolean _Drawing = false;
-
-	@Override
-	public void surfaceCreated(SurfaceHolder holder) {
-		_Drawing = true;
-	}
-
-	@Override
-	public void surfaceChanged(SurfaceHolder holder, int format, int width, int height) {
-	}
-
-	@Override
-	public void surfaceDestroyed(SurfaceHolder holder) {
-		_Drawing = false;
-	}
-
-	public void draw() {
-		if (!_Drawing) return;
-		Canvas C = null;
-		try {
-			C = H.lockCanvas();
-			_draw(C);
-			H.unlockCanvasAndPost(C);
-		} catch (Throwable t) {
-			t.printStackTrace();
-		}
-	}
-
-	@Override
-	public void invalidate() {
-		super.invalidate();
-		draw();
-	}
-
-	private Drawable BK;
-
-	@Override
-	public void setBackground(Drawable background) {
-		BK = background;
-		invalidate();
-	}
-
-	@Override
-	public void setBackgroundDrawable(Drawable background) {
-		BK = background;
-		invalidate();
-	}
-
-	@Override
-	public Drawable getBackground() {
-		return BK;
-	}
-
-	@Override
-	protected void onLayout(boolean changed, int left, int top, int right, int bottom) {
-		super.onLayout(changed, left, top, right, bottom);
-		if (BK != null) BK.setBounds(left, top, right, bottom);
-	}
-
-	private int StartLine = 1;
 	private float XPadding = 0;
 	private char[] TABReplace = new char[] {' ', ' ', ' ', ' '};
 
@@ -177,39 +122,68 @@ public class VEdit extends SurfaceView implements SurfaceHolder.Callback {
 		invalidate();
 	}
 
+	public int getLineNumber() {
+		return Enters[0] - 1;
+	}
+
 	public char[] getTABReplace() {
 		return TABReplace;
 	}
 
-	public void setStartLine(int st) {
-		StartLine = st;
-		invalidate();
-	}
-
-	private float _touchStartX;
+	private float _lastX, _lastY;
 	private OverScroller Scroller;
 	private VelocityTracker SpeedCalc;
+	private boolean isDragging;
 
 	@Override
 	public boolean onTouchEvent(MotionEvent event) {
 		SpeedCalc.addMovement(event);
 		switch (event.getActionMasked()) {
 			case MotionEvent.ACTION_DOWN:
-				_touchStartX = XPadding - event.getX();
+				_lastX = event.getX();
+				_lastY = event.getY();
 				if (!Scroller.isFinished())
 					Scroller.abortAnimation();
 				return true;
 			case MotionEvent.ACTION_MOVE:
-				XPadding = _touchStartX + event.getX();
-				draw();
+				float deltaX = event.getX() - _lastX;
+				float deltaY = event.getY() - _lastY;
+				if (!isDragging) {
+					boolean xll = deltaX < 0;
+					boolean yll = deltaY < 0;
+					if (xll) deltaX = -deltaX;
+					if (yll) deltaY = -deltaY;
+					if (deltaX > _touchSlop) {
+						deltaX -= _touchSlop;
+						isDragging = true;
+					}
+					if (deltaY > _touchSlop) {
+						deltaY -= _touchSlop;
+						isDragging = true;
+					}
+					if (isDragging) {
+						if (xll) deltaX = -deltaX;
+						if (yll) deltaY = -deltaY;
+					}
+				}
+				if (isDragging) {
+					//XPadding += deltaX;
+					YPadding += deltaY;
+					_lastX = event.getX();
+					_lastY = event.getY();
+				}
+				invalidate();
 				return true;
+			case MotionEvent.ACTION_CANCEL:
 			case MotionEvent.ACTION_UP:
-				XPadding = _touchStartX + event.getX();
+				isDragging = false;
 				SpeedCalc.computeCurrentVelocity(1000);
 				int speedX = (int) SpeedCalc.getXVelocity();
-				// TODO speedY
-				if (Math.abs(speedX) > _minFling) {
-					Scroller.fling((int) XPadding, 0, speedX, -0, Integer.MIN_VALUE, 0, 0, 0);
+				int speedY = (int) SpeedCalc.getYVelocity();
+				if (Math.abs(speedX) <= _minFling) speedX = 0;
+				if (Math.abs(speedY) <= _minFling) speedY = 0;
+				if (speedX != 0 || speedY != 0) {
+					Scroller.fling((int) XPadding, (int) YPadding, 0, speedY, Integer.MIN_VALUE, 0, ContentHeight + getHeight(), 0);
 					invalidate();
 				}
 				SpeedCalc.clear();
@@ -222,45 +196,100 @@ public class VEdit extends SurfaceView implements SurfaceHolder.Callback {
 	public void computeScroll() {
 		if (Scroller.computeScrollOffset()) {
 			XPadding = Scroller.getCurrX();
+			YPadding = Scroller.getCurrY();
 			postInvalidate();
 		}
 	}
 
-	private void _draw(Canvas canvas) {
+	// TODO 我就不信！！还有100个字符都塞不满屏幕的情况！！
+	// TODO 好吧确实有，望修复
+	private char[] TMP = new char[256];
+
+	private SoftReference<Bitmap>[] LINE_IMAGES;
+
+	@Override
+	protected void onDraw(Canvas canvas) {
 		long st = System.currentTimeMillis();
-		if (BK != null) BK.draw(canvas);
-		float x, y = YStart;
-		final int step = 50;
+		float x, y = -YPadding / TextHeight;
+		int StartLine = (int) y;
+		y = YPadding + StartLine * TextHeight + YOffset;
+		StartLine++;
 		int width = canvas.getWidth(), height = canvas.getHeight();
 		int en;
-		// TODO 我就不信！！还有100个字符都塞不满屏幕的情况！！
-		// TODO 好吧确实有，望修复
-		char[] tmp = new char[100];
 		int tot;
-		for (int line = StartLine, i; line < Enters[0]; line++) {
-			x = XPadding;
-			en = Enters[line + 1] - 1;
-			tot = 0;
-			for (i = Enters[line]; i <= en && x <= width; i++) {
-				if ((tmp[tot] = S.charAt(i)) == '\t') {
-					System.arraycopy(TABReplace, 0, tmp, tot, TABReplace.length);
-					tot += TABReplace.length;
-					x += TABReplaceWidth;
-				} else
-					x += ContentPaint.measureText(tmp, tot++, 1);
-			}
-			canvas.drawText(tmp, 0, tot, XPadding, y, ContentPaint);
-			/*i = Enters[line] + step;
-			if (i <= en) {
-				for (; x <= width; i = Math.min(i + step, en)) {
-					canvas.drawText(S, i - step, i, x, y, ContentPaint);
-					x += ContentPaint.measureText(S, i - step, i);
+		float wtmp;
+		float XStart;
+		if (StartLine > 0)
+			LineDraw:for (int line = StartLine, i; line < Enters[0]; line++) {
+				XStart = XPadding;
+				en = Enters[line + 1];
+				i = Enters[line];
+				if (i == en) {
+					if ((y += TextHeight) > height) break;
+					continue;
 				}
-			} else canvas.drawText(S, Enters[line], en, x, y, ContentPaint);*/
-			if ((y += TextHeight) > height) break;
-		}
-		//new StaticLayout(S, ContentPaint, canvas.getWidth(), Layout.Alignment.ALIGN_LEFT, 1, 0, true).draw(canvas);
+				en--;
+				/*if (XStart < 0)
+					// TODO 这里需要判断TAB额外变出的长度
+					while (true) {
+						if ((wtmp = (XStart + ContentPaint.measureText(S, i, Math.min(en, i + MEASURE_STEP)))) >= 0)
+							break;
+						if ((i += MEASURE_STEP) >= en) {
+							if ((y += TextHeight) > height) break LineDraw;
+							continue LineDraw;
+						}
+						XStart = wtmp;
+					}
+				tot = 0;
+				for (x = XStart; i < en && x <= width; i++) {
+					if ((TMP[tot] = S.charAt(i)) == '\t') {
+						XStart += TABReplaceWidth;
+						x += TABReplaceWidth;
+					} else if ((wtmp = ContentPaint.measureText(TMP, tot, 1)) != 0) {
+						tot++;
+						x += wtmp;
+					}
+				}
+				canvas.drawText(TMP, 0, tot, XStart, y, ContentPaint);*/
+				/*tot = i;
+				for (x = XStart; i < en && x <= width; i++) {
+					if (S.charAt(i) == '\t') {
+						if (tot != i)
+							canvas.drawText(S, tot, i, XStart, y, ContentPaint);
+						tot = i + 1;
+						XStart += TABReplaceWidth;
+						x += TABReplaceWidth;
+					} else if ((wtmp = ContentPaint.measureText(S, i, i + 1)) != 0)
+						x += wtmp;
+				}
+				if (tot != en)
+					canvas.drawText(S, tot, i, XStart, y, ContentPaint);*/
+				/*i = Enters[line] + MEASURE_STEP;
+				if (i <= en) {
+					for (x = XStart; x <= width; i = Math.min(i + MEASURE_STEP, en)) {
+						canvas.drawText(S, i - MEASURE_STEP, i, x, y, ContentPaint);
+						x += ContentPaint.measureText(S, i - MEASURE_STEP, i);
+					}
+				} else canvas.drawText(S, Enters[line], en, XStart, y, ContentPaint);*/
+//				canvas.drawText(S, i, en, XStart, y, ContentPaint);
+				Bitmap tmp = null;
+				if (LINE_IMAGES[line] != null)
+					tmp = LINE_IMAGES[line].get();
+				if (tmp == null) {
+					tmp = Bitmap.createBitmap((int) ContentPaint.measureText(S, i, en) + 1, (int) TextHeight + 1, Bitmap.Config.ARGB_4444);
+					new Canvas(tmp).drawText(S, i, en, 0, YOffset, ContentPaint);
+					LINE_IMAGES[line] = new SoftReference<>(tmp);
+				}
+				/*Bitmap tmp = LINE_IMAGES[line];
+				if (tmp == null) {
+					tmp = Bitmap.createBitmap((int) ContentPaint.measureText(S, i, en) + 1, (int) TextHeight + 1, Bitmap.Config.ARGB_4444);
+					new Canvas(tmp).drawText(S, i, en, 0, YOffset, ContentPaint);
+					LINE_IMAGES[line] = tmp;
+				}*/
+				canvas.drawBitmap(tmp, 0, y, ContentPaint);
+				if ((y += TextHeight) > height) break;
+			}
 		st = System.currentTimeMillis() - st;
-		Log.i("VEdit", "耗时: " + st);
+		Log.i("VEdit", "耗时1: " + st);
 	}
 }
