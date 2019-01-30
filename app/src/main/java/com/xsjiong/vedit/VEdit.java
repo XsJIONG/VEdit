@@ -47,7 +47,6 @@ public class VEdit extends View {
 		ViewPaint.setStyle(Paint.Style.FILL);
 		ViewPaint.setColor(Color.WHITE);
 		_updateFontMetrics();
-		postInvalidate();
 		ViewConfiguration config = ViewConfiguration.get(cx);
 		_minFling = config.getScaledMinimumFlingVelocity();
 		_touchSlop = config.getScaledTouchSlop();
@@ -66,8 +65,7 @@ public class VEdit extends View {
 		TextHeight = m.descent - m.ascent;
 		YOffset = -m.ascent;
 		TABReplaceWidth = ContentPaint.measureText(TABReplace, 0, TABReplace.length);
-		// 实则是预留了5行！
-		ContentHeight = (int) -(TextHeight * (Enters[0] + 4));
+		ContentHeight = (int) -(TextHeight * (Enters[0] - 1));
 	}
 
 	public void setTextAntiAlias(boolean flag) {
@@ -105,7 +103,7 @@ public class VEdit extends View {
 		/*if (Enters[Enters[0]] != s.length()) */
 		Enters[++Enters[0]] = s.length() + 1;
 		LINE_IMAGES = new SoftReference[Enters[0]];
-		ContentHeight = (int) -(TextHeight * (Enters[0] + 4));
+		ContentHeight = (int) -(TextHeight * (Enters[0] - 1));
 		invalidate();
 	}
 
@@ -190,6 +188,12 @@ public class VEdit extends View {
 				return true;
 		}
 		return super.onTouchEvent(event);
+	}
+
+	@Override
+	protected void onMeasure(int widthMeasureSpec, int heightMeasureSpec) {
+		super.onMeasure(widthMeasureSpec, heightMeasureSpec);
+		setMeasuredDimension(MeasureSpec.getSize(widthMeasureSpec), -ContentHeight);
 	}
 
 	@Override
