@@ -5,6 +5,8 @@ import android.os.Bundle;
 import android.support.v7.app.AppCompatActivity;
 import android.support.v7.widget.LinearLayoutCompat;
 
+import java.io.FileInputStream;
+
 public class MainActivity extends AppCompatActivity {
 	private LinearLayoutCompat C;
 	private VEdit V1;
@@ -29,7 +31,13 @@ public class MainActivity extends AppCompatActivity {
 		C.addView(V2, P);*/
 		V3 = new VEditTest(this);
 		V3.setBackgroundColor(Color.WHITE);
-		V3.setText(G.D);
+//		V3.setText(G.D);
+		try {
+			V3.setText(new String(IO.Read(new FileInputStream("/sdcard/AppProjects/MNIST.nn"))));
+//			V3.setText(G.D);
+		} catch (Throwable t) {
+			t.printStackTrace();
+		}
 		C.addView(V3, P);
 		setContentView(C);
 	}
