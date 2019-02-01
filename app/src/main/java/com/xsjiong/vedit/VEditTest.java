@@ -316,8 +316,16 @@ public class VEditTest extends View {
 		return super.onTouchEvent(event);
 	}
 
+	public int getLineLength(int line) {
+		return E[line + 1] - E[line] - 1;
+	}
+
 	private void onClick(float x, float y) {
 		HighLightLine = (int) Math.ceil(y / (TextHeight + _LinePaddingTop + _LinePaddingBottom));
+		char[] lc = getLineChars(HighLightLine);
+		float[] widths = new float[lc.length];
+		ContentPaint.getTextWidths(lc, 0, lc.length, widths);
+		// Mark
 		invalidate();
 	}
 
@@ -406,7 +414,9 @@ public class VEditTest extends View {
 						XStart += TABWidth;
 						x += TABWidth;
 					} else {
+						// You See? 这个可怜的TMP3就是拿来测单个字符的
 						TMP3[0] = TMP[tot++];
+						// TODO 改成getTextWidths，效率++++
 						x += Math.max(10, ContentPaint.measureText(TMP3, 0, 1));
 					}
 				}
