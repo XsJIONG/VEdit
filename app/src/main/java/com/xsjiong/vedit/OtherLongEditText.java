@@ -100,7 +100,6 @@ public class OtherLongEditText extends ListView {
 
 		@Override
 		public int getCount() {
-			Log.i("ContentLength", C.length + "");
 			return C.length;
 		}
 
@@ -158,5 +157,6 @@ public class OtherLongEditText extends ListView {
 		long st = System.currentTimeMillis();
 		super.draw(canvas);
 		st = System.currentTimeMillis() - st;
+		Log.i("VEdit", "耗时2: " + st);
 	}
 }
