@@ -64,4 +64,10 @@ public class MainActivity extends AppCompatActivity {
 		C.addView(V4, P);*/
 		setContentView(C);
 	}
+
+	@Override
+	protected void onPause() {
+		V3.hideIME();
+		super.onPause();
+	}
 }

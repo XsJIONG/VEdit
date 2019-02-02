@@ -1,24 +1,33 @@
 package com.xsjiong.vedit;
 
 import android.content.Context;
-import android.content.res.Resources;
 import android.graphics.Canvas;
 import android.graphics.Color;
 import android.graphics.Paint;
+import android.graphics.Rect;
+import android.support.annotation.Nullable;
+import android.text.InputType;
 import android.text.TextPaint;
 import android.util.AttributeSet;
 import android.util.Log;
 import android.util.TypedValue;
-import android.view.MotionEvent;
-import android.view.VelocityTracker;
-import android.view.View;
-import android.view.ViewConfiguration;
+import android.view.*;
+import android.view.inputmethod.*;
 import android.widget.OverScroller;
 
 public class VEditTest extends View {
+	// --------------------
+	// -----Constants------
+	// --------------------
+
 	public static final int MEASURE_STEP = 50;
 	public static final int LINENUM_SPLIT_WIDTH = 7;
-	public static final int CONTENT_LEFT_PADDING = 5;
+	public static final boolean USE_WHOLE_LINE_DRAWING = true;
+
+
+	// -----------------
+	// -----Fields------
+	// -----------------
 
 	private TextPaint ContentPaint, LineNumberPaint;
 	private Paint ColorPaint;
@@ -37,10 +46,23 @@ public class VEditTest extends View {
 	private int _YScrollRange;
 	private float LineNumberWidth;
 	private int _maxOSX = 20, _maxOSY = 20;
-	private int HighLightLine = 1;
-	private int _ColorSplitLine = 0xFF2196F3;
-	private int _ColorHighLightLine = 0xB22196F3;
+	private TextRegion _Selection = new TextRegion();
+	private TextRegion _Composing = new TextRegion(-1, 0);
+	private float _CursorWidth = 2;
 	private float _LinePaddingTop = 5, _LinePaddingBottom = 5;
+	private int _ColorSplitLine = 0xFF2196F3;
+	private int _ColorSelectedLine = 0x3B2196F3;
+	private int _ColorCursor = 0xFFFF5722;
+	private float _ContentLeftPadding = 7;
+	private int _TextLength;
+	private boolean _Editable = true;
+	private VInputConnection _InputConnection;
+	private InputMethodManager _IMM;
+
+
+	// -----------------------
+	// -----Constructors------
+	// -----------------------
 
 	public VEditTest(Context cx) {
 		this(cx, null, 0);
@@ -67,7 +89,29 @@ public class VEditTest extends View {
 		ContentPaint.setColor(Color.BLACK);
 		ColorPaint = new Paint();
 		ColorPaint.setAntiAlias(false);
-		ColorPaint.setColor(Color.GRAY);
+		ColorPaint.setDither(false);
+		_IMM = (InputMethodManager) getContext().getSystemService(Context.INPUT_METHOD_SERVICE);
+		setFocusable(true);
+		setFocusableInTouchMode(true);
+	}
+
+
+	// ------------------
+	// -----Methods------
+	// ------------------
+
+	public void setEditable(boolean editable) {
+		_Editable = editable;
+		invalidate();
+	}
+
+	public void setContentLeftPadding(float padding) {
+		_ContentLeftPadding = padding;
+		invalidate();
+	}
+
+	public float getContentLeftPadding() {
+		return _ContentLeftPadding;
 	}
 
 	public int getLineNumber() {
@@ -117,19 +161,12 @@ public class VEditTest extends View {
 		invalidate();
 	}
 
-	public void setHighLightLine(int line) {
-		if (line < 1) line = 1;
-		else if (line > E[0]) line = E[0];
-		HighLightLine = line;
-		invalidate();
+	public int getSelctionStartLine() {
+		return _Selection.StartLine;
 	}
 
-	public int getHighLightLine() {
-		return HighLightLine;
-	}
-
-	public void setHighLightLineColor(int color) {
-		_ColorHighLightLine = color;
+	public void getSelectedLineColor(int color) {
+		_ColorSelectedLine = color;
 		invalidate();
 	}
 
@@ -138,12 +175,21 @@ public class VEditTest extends View {
 		invalidate();
 	}
 
-	public int getHighLightLineColor() {
-		return _ColorHighLightLine;
+	public void setCursorColor(int color) {
+		_ColorCursor = color;
+		invalidate();
+	}
+
+	public int getSelectedLineColor() {
+		return _ColorSelectedLine;
 	}
 
 	public int getSplitLineColor() {
 		return _ColorSplitLine;
+	}
+
+	public int getCursorColor() {
+		return _ColorCursor;
 	}
 
 	public void setTABSpaceCount(int count) {
@@ -189,30 +235,82 @@ public class VEditTest extends View {
 			}
 		}
 		E[++E[0]] = s.length + 1;
+		_TextLength = s.length;
 		onLineChange();
 		requestLayout();
 		invalidate();
 	}
 
-	/*@Override
-	protected void onMeasure(int widthMeasureSpec, int heightMeasureSpec) {
-		super.onMeasure();
-		setMeasuredDimension(
-				MeasureSpec.getSize(widthMeasureSpec),
-				ContentHeight
-		);
-	}*/
-
-	@Override
-	protected int getSuggestedMinimumHeight() {
-		return ContentHeight;
+	public int getSelectionStart() {
+		return E[_Selection.StartLine] + _Selection.StartColumn;
 	}
 
+	public int getSelectionEnd() {
+		return E[_Selection.EndLine] + _Selection.EndColumn;
+	}
 
-	private void onLineChange() {
-		ContentHeight = (int) ((TextHeight + _LinePaddingTop + _LinePaddingBottom) * (E[0] - 1));
-		_YScrollRange = ContentHeight - getHeight();
-		LineNumberWidth = LineNumberPaint.measureText("9") * ((int) Math.log10(E[0] - 1) + 1);
+	public void setSelection(int pos) {
+		int line = findLine(pos);
+		int column = pos - E[line];
+		_Selection.StartLine = _Selection.EndLine = line;
+		_Selection.StartColumn = _Selection.EndColumn = column;
+		invalidate();
+	}
+
+	public void setSelectionStart(int st) {
+		_Selection.StartLine = findLine(st);
+		_Selection.StartColumn = st - E[_Selection.StartLine];
+		invalidate();
+	}
+
+	public void setSelectionEnd(int en) {
+		_Selection.EndLine = findLine(en);
+		_Selection.EndColumn = en - E[_Selection.EndLine];
+		invalidate();
+	}
+
+	public void setSelectionRange(int st, int en) {
+		_Selection.StartLine = findLine(st);
+		_Selection.StartColumn = st - E[_Selection.StartLine];
+		_Selection.EndLine = findLine(en);
+		_Selection.EndColumn = en - E[_Selection.EndLine];
+		invalidate();
+	}
+
+	public void setSelectionStartLine(int line) {
+		_Selection.StartLine = line;
+		_Selection.StartColumn = Math.min(_Selection.StartColumn, E[line + 1] - E[line] - 1);
+		invalidate();
+	}
+
+	public void setSelectionEndLine(int line) {
+		_Selection.EndLine = line;
+		_Selection.EndColumn = Math.min(_Selection.EndColumn, E[line + 1] - E[line] - 1);
+		invalidate();
+	}
+
+	public void setSelectionLine(int line) {
+		_Selection.StartLine = _Selection.EndLine = line;
+		_Selection.StartColumn = _Selection.EndColumn = 0;
+		invalidate();
+	}
+
+	public void setSelectionStart(int line, int column) {
+		_Selection.StartLine = line;
+		_Selection.StartColumn = column;
+		invalidate();
+	}
+
+	public void setSelectionEnd(int line, int column) {
+		_Selection.EndLine = line;
+		_Selection.EndColumn = column;
+		invalidate();
+	}
+
+	public void setSelection(int line, int column) {
+		_Selection.StartLine = _Selection.EndLine = line;
+		_Selection.StartColumn = _Selection.EndColumn = column;
+		invalidate();
 	}
 
 	public void setMaxOverScroll(int x, int y) {
@@ -245,6 +343,46 @@ public class VEditTest extends View {
 		_flingFactor = (int) (1000 * factor);
 	}
 
+	public void setCursorWidth(float width) {
+		_CursorWidth = width;
+		invalidate();
+	}
+
+	public float getCursorWidth() {
+		return _CursorWidth;
+	}
+
+	public int getLineLength(int line) {
+		return E[line + 1] - E[line] - 1;
+	}
+
+	public int getTextLength() {
+		return _TextLength;
+	}
+
+	public boolean isComposing() {
+		return _Composing.StartLine != -1;
+	}
+
+	public void showIME() {
+		_IMM.showSoftInput(this, InputMethodManager.RESULT_SHOWN);
+		_IMM.restartInput(this);
+	}
+
+	public void hideIME() {
+		_IMM.hideSoftInputFromWindow(getWindowToken(), 0);
+	}
+
+
+	// --------------------------
+	// -----Override Methods-----
+	// --------------------------
+
+	@Override
+	protected int getSuggestedMinimumHeight() {
+		return ContentHeight;
+	}
+
 	@Override
 	public boolean onTouchEvent(MotionEvent event) {
 		SpeedCalc.addMovement(event);
@@ -254,6 +392,7 @@ public class VEditTest extends View {
 				_stY = _lastY = event.getY();
 				if (!Scroller.isFinished())
 					Scroller.abortAnimation();
+				requestFocus();
 				return true;
 			case MotionEvent.ACTION_MOVE:
 				float x = event.getX(), y = event.getY();
@@ -316,27 +455,10 @@ public class VEditTest extends View {
 		return super.onTouchEvent(event);
 	}
 
-	public int getLineLength(int line) {
-		return E[line + 1] - E[line] - 1;
-	}
-
-	private void onClick(float x, float y) {
-		HighLightLine = (int) Math.ceil(y / (TextHeight + _LinePaddingTop + _LinePaddingBottom));
-		char[] lc = getLineChars(HighLightLine);
-		float[] widths = new float[lc.length];
-		ContentPaint.getTextWidths(lc, 0, lc.length, widths);
-		// Mark
-		invalidate();
-	}
-
 	@Override
 	protected void onLayout(boolean changed, int left, int top, int right, int bottom) {
 		super.onLayout(changed, left, top, right, bottom);
 		_YScrollRange = ContentHeight - (bottom - top);
-	}
-
-	private void springBack() {
-		Scroller.springBack(getScrollX(), getScrollY(), 0, Integer.MAX_VALUE, 0, _YScrollRange);
 	}
 
 	@Override
@@ -352,15 +474,32 @@ public class VEditTest extends View {
 		}
 	}
 
-	private static int dp2px(int dp) {
-		return (int) (Resources.getSystem().getDisplayMetrics().density * dp + 0.5);
+	// 输入处理
+	@Override
+	public boolean onCheckIsTextEditor() {
+		return true;
 	}
 
-	// TODO 还有512个字符都塞不满屏幕的情况！
-	private char[] TMP = new char[512];
-	private char[] TMP2 = new char[MEASURE_STEP];
-	private char[] TMP3 = new char[1];
+	@Override
+	public InputConnection onCreateInputConnection(EditorInfo outAttrs) {
+		// TODO 在切换出输入法后切换到SelectedLine
+		outAttrs.imeOptions = EditorInfo.IME_FLAG_NO_FULLSCREEN;
+		if (_InputConnection == null)
+			_InputConnection = new VInputConnection(this);
+		_Composing.StartLine = -1;
+		return _InputConnection;
+	}
 
+	@Override
+	protected void onFocusChanged(boolean gainFocus, int direction, @Nullable Rect previouslyFocusedRect) {
+		Log.i("VEdit", "FocusChange: " + gainFocus);
+		if (!gainFocus)
+			// TODO FLAG
+			_IMM.hideSoftInputFromWindow(getWindowToken(), InputMethodManager.HIDE_NOT_ALWAYS);
+		super.onFocusChanged(gainFocus, direction, previouslyFocusedRect);
+	}
+
+	// 绘制函数
 	@Override
 	protected void onDraw(Canvas canvas) {
 		long st = System.currentTimeMillis();
@@ -371,25 +510,27 @@ public class VEditTest extends View {
 			canvas.drawText(S, E[line], E[line + 1] - E[line] - 1, 0, y, ContentPaint);
 			y += TextHeight;
 		}*/
-		float nh = TextHeight + _LinePaddingBottom + _LinePaddingTop;
+		final boolean isSingleSelection = _Selection.StartLine == _Selection.EndLine && _Selection.StartColumn == _Selection.EndColumn && _Editable;
+		final float nh = TextHeight + _LinePaddingBottom + _LinePaddingTop;
+		final float bottom = getScrollY() + getHeight() + YOffset;
+		final float right = getScrollX() + getWidth();
+		final float xo = LineNumberWidth + LINENUM_SPLIT_WIDTH + _ContentLeftPadding;
+
 		int line = Math.max((int) (getScrollY() / nh) + 1, 1);
 		float y = (line - 1) * nh + YOffset + _LinePaddingTop;
-		float bottom = getScrollY() + getHeight() + YOffset;
-		float right = getScrollX() + getWidth();
 		float XStart, wtmp, x;
 		int i, en;
 		int tot;
-		float xo = LineNumberWidth + LINENUM_SPLIT_WIDTH + CONTENT_LEFT_PADDING;
 		ColorPaint.setColor(_ColorSplitLine);
 		canvas.drawRect(LineNumberWidth, getScrollY(), LineNumberWidth + LINENUM_SPLIT_WIDTH, getScrollY() + getHeight(), ColorPaint);
 		LineDraw:
 		for (; line < E[0]; line++) {
-			if (line == HighLightLine) {
-				ColorPaint.setColor(_ColorHighLightLine);
-				canvas.drawRect(xo - CONTENT_LEFT_PADDING, y - YOffset - _LinePaddingTop, right, y + TextHeight - YOffset + _LinePaddingBottom, ColorPaint);
+			if (isSingleSelection && _Selection.StartLine == line) {
+				ColorPaint.setColor(_ColorSelectedLine);
+				canvas.drawRect(xo - _ContentLeftPadding, y - YOffset - _LinePaddingTop, right, y + TextHeight - YOffset + _LinePaddingBottom, ColorPaint);
 			}
 			canvas.drawText(Integer.toString(line), LineNumberWidth, y, LineNumberPaint);
-			if (true) {
+			if (USE_WHOLE_LINE_DRAWING) {
 				System.arraycopy(S, E[line], TMP, 0, tot = (E[line + 1] - E[line] - 1));
 				canvas.drawText(TMP, 0, tot, xo, y, ContentPaint);
 			} else {
@@ -410,6 +551,7 @@ public class VEditTest extends View {
 					}
 				tot = 0;
 				for (x = XStart; i < en && x <= right; i++) {
+					// Mark
 					if ((TMP[tot] = S[i]) == '\t') {
 						XStart += TABWidth;
 						x += TABWidth;
@@ -424,7 +566,193 @@ public class VEditTest extends View {
 			}
 			if ((y += nh) >= bottom) break;
 		}
+		if (USE_WHOLE_LINE_DRAWING) {
+			if (isSingleSelection) {
+				System.arraycopy(S, E[_Selection.StartLine], TMP, 0, _Selection.StartColumn);
+				float cursorStart = ContentPaint.measureText(TMP, 0, _Selection.StartColumn) + xo;
+				ColorPaint.setColor(_ColorCursor);
+				float yst = (_Selection.StartLine - 1) * nh;
+				// TODO Width Control
+				canvas.drawRect(cursorStart - _CursorWidth / 2, yst, cursorStart + _CursorWidth / 2, yst + nh, ColorPaint);
+			}
+		} else {
+			// TODO Complete Me!
+		}
 		st = System.currentTimeMillis() - st;
 		Log.i("VEdit", "耗时3: " + st);
+	}
+
+
+	// -------------------------
+	// -----Private Methods-----
+	// -------------------------
+
+	private int findLine(int pos) {
+		int l = 1, r = E[0] - 1;
+		int mid;
+		while (l <= r) {
+			mid = (l + r) >> 1;
+			if (E[mid] <= pos)
+				l = mid + 1;
+			else
+				r = mid - 1;
+		}
+		return r;
+	}
+
+	private void onClick(float x, float y) {
+		x -= (LineNumberWidth + LINENUM_SPLIT_WIDTH + _ContentLeftPadding);
+		_Selection.StartLine = _Selection.EndLine = (int) Math.ceil(y / (TextHeight + _LinePaddingTop + _LinePaddingBottom));
+		char[] lc = getLineChars(_Selection.StartLine);
+		float[] widths = new float[lc.length];
+		ContentPaint.getTextWidths(lc, 0, lc.length, widths);
+		lc = null;
+		int ret = 0;
+		for (float sum = -x; ret < widths.length; ret++) {
+			if ((sum += widths[ret]) >= 0) {
+				if ((-(sum - widths[ret])) > sum) // 是前面的更逼近一些
+					ret++;
+				break;
+			}
+		}
+		_Selection.StartColumn = _Selection.EndColumn = ret;
+		showIME();
+		invalidate();
+	}
+
+	private void onLineChange() {
+		ContentHeight = (int) ((TextHeight + _LinePaddingTop + _LinePaddingBottom) * (E[0] - 1));
+		_YScrollRange = ContentHeight - getHeight();
+		LineNumberWidth = LineNumberPaint.measureText("9") * ((int) Math.log10(E[0] - 1) + 1);
+	}
+
+	public void deleteChar() {
+		if (!_Editable) return;
+		if (_Selection.StartLine != _Selection.EndLine || _Selection.StartColumn != _Selection.EndColumn) return;
+		if (_Selection.StartLine == 1 && _Selection.StartColumn == 0) return;
+		int st = E[_Selection.StartLine] + _Selection.StartColumn;
+		System.arraycopy(S, st, S, st - 1, _TextLength - st);
+		if (_Selection.StartColumn == 0) {
+			_Selection.StartColumn = _Selection.EndColumn = E[_Selection.StartLine] - E[_Selection.StartLine - 1] - 1;
+			System.arraycopy(E, _Selection.StartLine + 1, E, _Selection.StartLine, E[0] - _Selection.StartLine);
+			E[0]--;
+			for (int i = _Selection.StartLine; i <= E[0]; i++) E[i]--;
+			_Selection.StartLine = --_Selection.EndLine;
+		} else {
+			for (int i = _Selection.StartLine + 1; i <= E[0]; i++) E[i]--;
+			_Selection.StartColumn = --_Selection.EndColumn;
+		}
+		_TextLength--;
+		invalidate();
+	}
+
+	private void springBack() {
+		Scroller.springBack(getScrollX(), getScrollY(), 0, Integer.MAX_VALUE, 0, _YScrollRange);
+	}
+
+
+	// --------------------------
+	// -----Temporary Fields-----
+	// --------------------------
+
+	// TODO 还有512个字符都塞不满屏幕的情况！
+	private char[] TMP = new char[512];
+	private char[] TMP2 = new char[MEASURE_STEP];
+	private char[] TMP3 = new char[1];
+
+
+	// -----------------------
+	// -----Inner Classes-----
+	// -----------------------
+
+	private static class TextRegion {
+		int StartLine, StartColumn;
+		int EndLine, EndColumn;
+
+		public TextRegion() {
+			StartLine = EndLine = 1;
+			StartColumn = EndColumn = 0;
+		}
+
+		public TextRegion(int line, int column) {
+			StartLine = EndLine = line;
+			StartColumn = EndColumn = column;
+		}
+
+		public TextRegion(int stLine, int stColumn, int enLine, int enColumn) {
+			this.StartLine = stLine;
+			this.StartColumn = stColumn;
+			this.EndLine = enLine;
+			this.EndColumn = enColumn;
+		}
+	}
+
+	private static class VInputConnection extends BaseInputConnection {
+		private VEditTest Q;
+
+		public VInputConnection(VEditTest parent) {
+			super(parent, true);
+			Q = parent;
+		}
+
+		@Override
+		public CharSequence getTextBeforeCursor(int n, int flags) {
+			// TODO 这里需要判断单点选择吗？
+			int cursor = Q.getSelectionStart();
+			int start = Math.max(cursor - n, 0);
+			return new String(Q.S, start, cursor - start);
+		}
+
+		@Override
+		public CharSequence getTextAfterCursor(int n, int flags) {
+			int docLength = Q._TextLength;
+			int cursor = Q.getSelectionStart();
+			if ((cursor + n) >= docLength)
+				return new String(Q.S, cursor, docLength - cursor - 1);
+			return new String(Q.S, cursor, n);
+		}
+
+		@Override
+		public CharSequence getSelectedText(int flags) {
+			int cursor = Q.getSelectionStart();
+			return new String(Q.S, cursor, Q.getSelectionEnd() - cursor);
+		}
+
+		@Override
+		public int getCursorCapsMode(int reqModes) {
+			// TODO Fix Me Maybe
+			return InputType.TYPE_TEXT_FLAG_CAP_CHARACTERS;
+		}
+
+		@Override
+		public boolean setComposingRegion(int start, int end) {
+			TextRegion com = Q._Composing;
+			com.StartLine = Q.findLine(start);
+			com.StartColumn = start - Q.E[com.StartLine];
+			com.EndLine = Q.findLine(end);
+			com.EndColumn = end - Q.E[com.EndLine];
+			Q.invalidate();
+			// TODO 这里返回值什么鬼？
+			return true;
+		}
+
+		@Override
+		public boolean setComposingText(CharSequence text, int newCursorPosition) {
+			return super.setComposingText(text, newCursorPosition);
+		}
+
+		@Override
+		public boolean sendKeyEvent(KeyEvent event) {
+			if (event.getAction() != KeyEvent.ACTION_UP) return super.sendKeyEvent(event);
+			switch (event.getKeyCode()) {
+				case KeyEvent.KEYCODE_DEL:
+					Mark // 检测我的时间！
+					Q.deleteChar();
+					break;
+				default:
+					return super.sendKeyEvent(event);
+			}
+			return true;
+		}
 	}
 }
