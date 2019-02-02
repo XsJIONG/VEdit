@@ -14,6 +14,7 @@ public class MainActivity extends AppCompatActivity {
 	private OtherLongEditText V2;
 	private VEditTest V3;
 	private TextView V4;
+	private TextEditor V5;
 
 	@Override
 	protected void onCreate(Bundle savedInstanceState) {
@@ -62,6 +63,9 @@ public class MainActivity extends AppCompatActivity {
 		V4.setMaxLines(Integer.MAX_VALUE);
 		V4.setText(T);
 		C.addView(V4, P);*/
+		/*V5 = new TextEditor(this);
+		V5.setText(T);
+		C.addView(V5, P);*/
 		setContentView(C);
 	}
 
@@ -69,5 +73,11 @@ public class MainActivity extends AppCompatActivity {
 	protected void onPause() {
 		V3.hideIME();
 		super.onPause();
+	}
+
+	@Override
+	protected void onDestroy() {
+		V3.hideIME();
+		super.onDestroy();
 	}
 }
