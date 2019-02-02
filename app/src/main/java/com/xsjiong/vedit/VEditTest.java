@@ -1,10 +1,7 @@
 package com.xsjiong.vedit;
 
 import android.content.Context;
-import android.graphics.Canvas;
-import android.graphics.Color;
-import android.graphics.Paint;
-import android.graphics.Rect;
+import android.graphics.*;
 import android.support.annotation.Nullable;
 import android.text.InputType;
 import android.text.TextPaint;
@@ -18,6 +15,8 @@ import android.view.inputmethod.InputConnection;
 import android.view.inputmethod.InputMethodManager;
 import android.widget.OverScroller;
 
+import java.util.Arrays;
+
 public class VEditTest extends View {
 	// --------------------
 	// -----Constants------
@@ -27,6 +26,7 @@ public class VEditTest extends View {
 	public static final int LINENUM_SPLIT_WIDTH = 7;
 	public static final boolean USE_WHOLE_LINE_DRAWING = false;
 	public static final int EXPAND_SIZE = 64;
+	public static final int EMPTY_CHAR_WIDTH = 10;
 
 
 	// -----------------
@@ -63,6 +63,7 @@ public class VEditTest extends View {
 	private VInputConnection _InputConnection;
 	private InputMethodManager _IMM;
 	private boolean _ShowLineNumber = true;
+	private float[] _CharWidths = new float[Short.MAX_VALUE - Short.MIN_VALUE];
 
 
 	// -----------------------
@@ -104,6 +105,12 @@ public class VEditTest extends View {
 	// ------------------
 	// -----Methods------
 	// ------------------
+
+	public void setTypeface(Typeface typeface) {
+		ContentPaint.setTypeface(typeface);
+		LineNumberPaint.setTypeface(typeface);
+		onFontChange();
+	}
 
 	public void setShowLineNumber(boolean flag) {
 		_ShowLineNumber = flag;
@@ -167,12 +174,7 @@ public class VEditTest extends View {
 	public void setTextSize(float size) {
 		ContentPaint.setTextSize(size);
 		LineNumberPaint.setTextSize(size);
-		YOffset = -ContentPaint.ascent();
-		TextHeight = ContentPaint.descent() + YOffset;
-		TABWidth = TABSpaceCount * ContentPaint.measureText(" ");
-		onLineChange();
-		requestLayout();
-		invalidate();
+		onFontChange();
 	}
 
 	public int getSelctionStartLine() {
@@ -208,7 +210,7 @@ public class VEditTest extends View {
 
 	public void setTABSpaceCount(int count) {
 		TABSpaceCount = count;
-		TABWidth = TABSpaceCount * ContentPaint.measureText(" ");
+		TABWidth = TABSpaceCount * LineNumberPaint.measureText(" ");
 		invalidate();
 	}
 
@@ -348,10 +350,10 @@ public class VEditTest extends View {
 	}
 
 	private boolean _dragDirection;
-	private int _flingFactor = 1200;
+	private int _flingFactor = 1000;
 
-	public void setFlingFactor(float factor) {
-		_flingFactor = (int) (1000 * factor);
+	public void setFlingFactor(int factor) {
+		_flingFactor = factor;
 	}
 
 	public void setCursorWidth(float width) {
@@ -400,6 +402,7 @@ public class VEditTest extends View {
 			E[0]--;
 			for (int i = line; i <= E[0]; i++) E[i]--;
 			line = --_Selection.EndLine;
+			onLineChange();
 		} else {
 			for (int i = line + 1; i <= E[0]; i++) E[i]--;
 			column = --_Selection.EndColumn;
@@ -445,6 +448,7 @@ public class VEditTest extends View {
 			E[line + 1] = st + 1;
 			line++;
 			column = 0;
+			onLineChange();
 		} else {
 			for (int i = E[0]; i > line; i--) E[i]++;
 			column++;
@@ -610,6 +614,13 @@ public class VEditTest extends View {
 		super.onFocusChanged(gainFocus, direction, previouslyFocusedRect);
 	}
 
+	@Override
+	public boolean onKeyPreIme(int keyCode, KeyEvent event) {
+		if (processEvent(event)) return true;
+		return super.onKeyPreIme(keyCode, event);
+	}
+
+
 	// 绘制函数
 	@Override
 	protected void onDraw(Canvas canvas) {
@@ -675,12 +686,8 @@ public class VEditTest extends View {
 					if ((TMP[tot] = S[i]) == '\t') {
 						XStart += TABWidth;
 						x += TABWidth;
-					} else {
-						// You See? 这个可怜的TMP3就是拿来测单个字符的
-						TMP3[0] = TMP[tot++];
-						// TODO 改成getTextWidths，效率++++
-						x += Math.max(10, ContentPaint.measureText(TMP3, 0, 1));
-					}
+					} else
+						x += getCharWidth(TMP[tot++]);
 				}
 				if (isSingleSelection && line == _Selection.StartLine && i == stPos) {
 					ColorPaint.setColor(_ColorCursor);
@@ -709,6 +716,25 @@ public class VEditTest extends View {
 	// -------------------------
 	// -----Private Methods-----
 	// -------------------------
+
+	private boolean processEvent(KeyEvent event) {
+		if (event.getAction() != KeyEvent.ACTION_UP) return false;
+		if (event.isPrintingKey()) {
+			insertChar((char) event.getUnicodeChar(event.getMetaState()));
+			return true;
+		}
+		switch (event.getKeyCode()) {
+			case KeyEvent.KEYCODE_DEL:
+				deleteChar();
+				break;
+			case KeyEvent.KEYCODE_ENTER:
+				insertChar('\n');
+				break;
+			default:
+				return false;
+		}
+		return true;
+	}
 
 	private void expandEArray() {
 		// TODO Extract Constant
@@ -753,10 +779,35 @@ public class VEditTest extends View {
 		invalidate();
 	}
 
+	private void onFontChange() {
+		YOffset = -ContentPaint.ascent();
+		TextHeight = ContentPaint.descent() + YOffset;
+		TABWidth = TABSpaceCount * LineNumberPaint.measureText(" ");
+		clearCharWidthCache();
+		onLineChange();
+		requestLayout();
+		invalidate();
+	}
+
 	private void onLineChange() {
 		ContentHeight = (int) ((TextHeight + _LinePaddingTop + _LinePaddingBottom) * (E[0] - 1));
 		_YScrollRange = ContentHeight - getHeight();
 		LineNumberWidth = LineNumberPaint.measureText("9") * ((int) Math.log10(E[0] - 1) + 1);
+	}
+
+	private float getCharWidth(char c) {
+		if (c == '\t') return TABWidth;
+		int ind = (int) ((short) c) - Short.MIN_VALUE;
+		if (_CharWidths[ind] == 0) {
+			TMP3[0] = c;
+			if ((_CharWidths[ind] = ContentPaint.measureText(TMP3, 0, 1)) == 0)
+				_CharWidths[ind] = EMPTY_CHAR_WIDTH;
+			return _CharWidths[ind];
+		} else return _CharWidths[ind];
+	}
+
+	private void clearCharWidthCache() {
+		Arrays.fill(_CharWidths, 0);
 	}
 
 	private void springBack() {
@@ -857,22 +908,8 @@ public class VEditTest extends View {
 
 		@Override
 		public boolean sendKeyEvent(KeyEvent event) {
-			if (event.getAction() != KeyEvent.ACTION_UP) return super.sendKeyEvent(event);
-			if (event.isPrintingKey()) {
-				Q.insertChar((char) event.getUnicodeChar(event.getMetaState()));
-				return true;
-			}
-			switch (event.getKeyCode()) {
-				case KeyEvent.KEYCODE_DEL:
-					Q.deleteChar();
-					break;
-				case KeyEvent.KEYCODE_ENTER:
-					Q.insertChar('\n');
-					break;
-				default:
-					return super.sendKeyEvent(event);
-			}
-			return true;
+			if (Q.processEvent(event)) return true;
+			return super.sendKeyEvent(event);
 		}
 	}
 }
