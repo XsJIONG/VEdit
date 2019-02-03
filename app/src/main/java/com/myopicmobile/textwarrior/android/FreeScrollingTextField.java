@@ -561,7 +561,6 @@ public class FreeScrollingTextField extends View
 
 	@Override
 	protected void onDraw(Canvas canvas) {
-		long st = System.currentTimeMillis();
 		canvas.save();
 
 		//translate clipping region to create padding around edges
@@ -575,8 +574,7 @@ public class FreeScrollingTextField extends View
 		canvas.restore();
 
 		_navMethod.onTextDrawComplete(canvas);
-		st = System.currentTimeMillis() - st;
-		Log.i("VEdit", "耗时5: " + st);
+
 	}
 
 	/**

@@ -156,7 +156,9 @@ public class OtherLongEditText extends ListView {
 	public void draw(Canvas canvas) {
 		long st = System.currentTimeMillis();
 		super.draw(canvas);
-		st = System.currentTimeMillis() - st;
-		Log.i("VEdit", "耗时2: " + st);
+		if (G.LOG_TIME) {
+			st = System.currentTimeMillis() - st;
+			Log.i("VEdit", "耗时2: " + st);
+		}
 	}
 }

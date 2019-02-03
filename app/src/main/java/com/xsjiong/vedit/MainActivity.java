@@ -50,8 +50,10 @@ public class MainActivity extends AppCompatActivity {
 			public void draw(Canvas canvas) {
 				long st = System.currentTimeMillis();
 				super.draw(canvas);
-				st = System.currentTimeMillis() - st;
-				Log.i("VEdit", "耗时4: " + st);
+				if (G.LOG_TIME) {
+					st = System.currentTimeMillis() - st;
+					Log.i("VEdit", "耗时4: " + st);
+				}
 			}
 		};
 		V4.setTextColor(Color.BLACK);

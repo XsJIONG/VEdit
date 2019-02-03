@@ -22,11 +22,11 @@ public class VEditTest extends View {
 	// -----Constants------
 	// --------------------
 
-	public static final int MEASURE_STEP = 50;
 	public static final int LINENUM_SPLIT_WIDTH = 7;
 	public static final boolean USE_WHOLE_LINE_DRAWING = false;
 	public static final int EXPAND_SIZE = 64;
 	public static final int EMPTY_CHAR_WIDTH = 10;
+	public static final int SCROLL_TO_CURSOR_EXTRA = 20;
 
 
 	// -----------------
@@ -51,7 +51,7 @@ public class VEditTest extends View {
 	private float LineNumberWidth;
 	private int _maxOSX = 20, _maxOSY = 20;
 	private TextRegion _Selection = new TextRegion();
-	private TextRegion _Composing = new TextRegion(-1, 0);
+	private int _ComposingStart = -1, _ComposingEnd = 0;
 	private float _CursorWidth = 2;
 	private float _LinePaddingTop = 5, _LinePaddingBottom = 5;
 	private int _ColorSplitLine = 0xFF2196F3;
@@ -167,6 +167,7 @@ public class VEditTest extends View {
 		invalidate();
 	}
 
+	// Recommend using "setScale" since "setTextSize" will clear the text width cache, which makes drawing slower
 	public void setTextSize(int unit, float size) {
 		setTextSize(TypedValue.applyDimension(unit, size, getContext().getResources().getDisplayMetrics()));
 	}
@@ -374,7 +375,7 @@ public class VEditTest extends View {
 	}
 
 	public boolean isComposing() {
-		return _Composing.StartLine != -1;
+		return _ComposingStart != -1;
 	}
 
 	public void showIME() {
@@ -476,6 +477,30 @@ public class VEditTest extends View {
 		return getChars(0, _TextLength);
 	}
 
+	public void makeLineVisible(int line) {
+		final float nh = TextHeight + _LinePaddingTop + _LinePaddingBottom;
+		float y = nh * _Selection.StartLine - getHeight();
+		if (getScrollY() < y) {
+			scrollTo(getScrollX(), (int) Math.ceil(y));
+			postInvalidate();
+		}
+	}
+
+	public void makeCursorVisible(int line, int cursor) {
+		makeLineVisible(line);
+		cursor = E[line] + cursor;
+		float sum = (_ShowLineNumber ? (LineNumberWidth + LINENUM_SPLIT_WIDTH) : 0) + _ContentLeftPadding;
+		for (int i = E[line]; i < cursor; i++)
+			sum += getCharWidth(S[i]);
+		if (sum - _CursorWidth / 2 < getScrollX()) {
+			scrollTo((int) (sum - _CursorWidth / 2) - SCROLL_TO_CURSOR_EXTRA, getScrollY());
+			postInvalidate();
+		} else if (sum + _CursorWidth / 2 > getScrollX() + getWidth()) {
+			scrollTo((int) Math.ceil(sum + _CursorWidth / 2 - getWidth()) + SCROLL_TO_CURSOR_EXTRA, getScrollY());
+			postInvalidate();
+		}
+	}
+
 
 	// --------------------------
 	// -----Override Methods-----
@@ -485,13 +510,8 @@ public class VEditTest extends View {
 	@Override
 	protected void onSizeChanged(int w, int h, int oldw, int oldh) {
 		super.onSizeChanged(w, h, oldw, oldh);
-		if (isRangeSelecting()) return;
-		final float nh = TextHeight + _LinePaddingTop + _LinePaddingBottom;
-		float y = nh * _Selection.StartLine - getHeight();
-		if (getScrollY() < y) {
-			scrollTo(getScrollX(), (int) Math.ceil(y));
-			invalidate();
-		}
+		if ((!isRangeSelecting()) && h < oldh)
+			makeLineVisible(_Selection.StartLine);
 	}
 
 	@Override
@@ -602,7 +622,7 @@ public class VEditTest extends View {
 		outAttrs.imeOptions = EditorInfo.IME_FLAG_NO_FULLSCREEN;
 		if (_InputConnection == null)
 			_InputConnection = new VInputConnection(this);
-		_Composing.StartLine = -1;
+		_ComposingStart = -1;
 		return _InputConnection;
 	}
 
@@ -635,7 +655,7 @@ public class VEditTest extends View {
 		final boolean isSingleSelection = (!isRangeSelecting()) && _Editable;
 		final float nh = TextHeight + _LinePaddingBottom + _LinePaddingTop;
 		final float bottom = getScrollY() + getHeight() + YOffset;
-		final float right = getScrollX() + getWidth();
+		final int right = getScrollX() + getWidth();
 		final float xo = (_ShowLineNumber ? LineNumberWidth + LINENUM_SPLIT_WIDTH : 0) + _ContentLeftPadding;
 		final int stPos = getSelectionStart();
 
@@ -665,21 +685,17 @@ public class VEditTest extends View {
 				i = E[line];
 				en = E[line + 1] - 1;
 				XStart = xo;
-				if (getScrollX() > 0)
-					// TODO 这里需要判断TAB额外变出的长度
-					while (true) {
-						System.arraycopy(S, i, TMP2, 0, tot = Math.min(en - i, MEASURE_STEP));
-						if ((wtmp = (XStart + ContentPaint.measureText(TMP2, 0, tot))) >= getScrollX())
-							break;
-						if ((i += MEASURE_STEP) >= en) {
-							if ((y += nh) > bottom) break LineDraw;
+				if (getScrollX() > XStart)
+					while ((wtmp = XStart + getCharWidth(S[i])) < getScrollX()) {
+						if (++i >= en) {
+							if ((y += nh) >= bottom) break LineDraw;
 							continue LineDraw;
 						}
 						XStart = wtmp;
 					}
 				tot = 0;
 				for (x = XStart; i < en && x <= right; i++) {
-					if (isSingleSelection && line == _Selection.StartLine && i == stPos) {
+					if (isSingleSelection && i == stPos) {
 						ColorPaint.setColor(_ColorCursor);
 						canvas.drawRect(x - _CursorWidth / 2, y - YOffset - _LinePaddingTop, x + _CursorWidth / 2, y - YOffset + TextHeight + _LinePaddingBottom, ColorPaint);
 					}
@@ -705,11 +721,11 @@ public class VEditTest extends View {
 				float yst = (_Selection.StartLine - 1) * nh;
 				canvas.drawRect(cursorStart - _CursorWidth / 2, yst, cursorStart + _CursorWidth / 2, yst + nh, ColorPaint);
 			}
-		} else {
-			// TODO Complete Me!
 		}
-		st = System.currentTimeMillis() - st;
-		Log.i("VEdit", "耗时3: " + st);
+		if (G.LOG_TIME) {
+			st = System.currentTimeMillis() - st;
+			Log.i("VEdit", "耗时3: " + st);
+		}
 	}
 
 
@@ -761,20 +777,17 @@ public class VEditTest extends View {
 		if (_ShowLineNumber)
 			x -= (LineNumberWidth + LINENUM_SPLIT_WIDTH);
 		_Selection.StartLine = _Selection.EndLine = (int) Math.ceil(y / (TextHeight + _LinePaddingTop + _LinePaddingBottom));
-		char[] lc = getLineChars(_Selection.StartLine);
-		float[] widths = new float[lc.length];
-		ContentPaint.getTextWidths(lc, 0, lc.length, widths);
-		int ret = 0;
-		for (float sum = -x; ret < widths.length; ret++) {
-			if (lc[ret] == '\t') widths[ret] = TABWidth;
-			if ((sum += widths[ret]) >= 0) {
-				if ((-(sum - widths[ret])) > sum) // 是前面的更逼近一些
+		final int en = E[_Selection.StartLine + 1] - 1;
+		int ret = E[_Selection.StartLine];
+		for (float sum = -x; ret < en; ret++) {
+			if ((sum += getCharWidth(S[ret])) >= 0) {
+				if ((-(sum - getCharWidth(S[ret]))) > sum) // 是前面的更逼近一些
 					ret++;
 				break;
 			}
 		}
-		lc = null;
-		_Selection.StartColumn = _Selection.EndColumn = ret;
+		_Selection.StartColumn = _Selection.EndColumn = ret - E[_Selection.StartLine];
+		makeCursorVisible(_Selection.StartLine, _Selection.StartColumn);
 		showIME();
 		invalidate();
 	}
@@ -799,8 +812,8 @@ public class VEditTest extends View {
 		if (c == '\t') return TABWidth;
 		int ind = (int) ((short) c) - Short.MIN_VALUE;
 		if (_CharWidths[ind] == 0) {
-			TMP3[0] = c;
-			if ((_CharWidths[ind] = ContentPaint.measureText(TMP3, 0, 1)) == 0)
+			TMP2[0] = c;
+			if ((_CharWidths[ind] = ContentPaint.measureText(TMP2, 0, 1)) == 0)
 				_CharWidths[ind] = EMPTY_CHAR_WIDTH;
 			return _CharWidths[ind];
 		} else return _CharWidths[ind];
@@ -821,8 +834,7 @@ public class VEditTest extends View {
 
 	// TODO 还有512个字符都塞不满屏幕的情况！
 	private char[] TMP = new char[512];
-	private char[] TMP2 = new char[MEASURE_STEP];
-	private char[] TMP3 = new char[1];
+	private char[] TMP2 = new char[1];
 
 
 	// -----------------------
@@ -890,11 +902,8 @@ public class VEditTest extends View {
 
 		@Override
 		public boolean setComposingRegion(int start, int end) {
-			TextRegion com = Q._Composing;
-			com.StartLine = Q.findLine(start);
-			com.StartColumn = start - Q.E[com.StartLine];
-			com.EndLine = Q.findLine(end);
-			com.EndColumn = end - Q.E[com.EndLine];
+			Q._ComposingStart = start;
+			Q._ComposingEnd = end;
 			Q.invalidate();
 			// TODO 这里返回值什么鬼？
 			return true;

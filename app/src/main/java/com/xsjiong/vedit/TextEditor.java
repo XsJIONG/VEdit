@@ -1,22 +1,18 @@
 package com.xsjiong.vedit;
 
 import android.content.Context;
+import android.graphics.Canvas;
 import android.graphics.Color;
 import android.graphics.Typeface;
 import android.util.AttributeSet;
 import android.util.DisplayMetrics;
+import android.util.Log;
 import android.util.TypedValue;
 import android.view.KeyEvent;
 import com.myopicmobile.textwarrior.android.ClipboardPanel;
 import com.myopicmobile.textwarrior.android.FreeScrollingTextField;
 import com.myopicmobile.textwarrior.android.YoyoNavigationMethod;
-import com.myopicmobile.textwarrior.common.ColorScheme;
-import com.myopicmobile.textwarrior.common.ColorSchemeDark;
-import com.myopicmobile.textwarrior.common.ColorSchemeLight;
-import com.myopicmobile.textwarrior.common.Document;
-import com.myopicmobile.textwarrior.common.DocumentProvider;
-import com.myopicmobile.textwarrior.common.LanguageJavascript;
-import com.myopicmobile.textwarrior.common.Lexer;
+import com.myopicmobile.textwarrior.common.*;
 
 import java.lang.reflect.Field;
 
@@ -235,4 +231,13 @@ public class TextEditor extends FreeScrollingTextField {
 	}*/
 	}
 
+	@Override
+	protected void onDraw(Canvas canvas) {
+		long st = System.currentTimeMillis();
+		super.onDraw(canvas);
+		if (G.LOG_TIME) {
+			st = System.currentTimeMillis() - st;
+			Log.i("VEdit", "耗时5: " + st);
+		}
+	}
 }

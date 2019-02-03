@@ -1,6 +1,8 @@
 package com.xsjiong.vedit;
 
 public interface G {
+	boolean LOG_TIME = false;
+
 	String D = "package com.xsjiong.vedit;\n" +
 			"\n" +
 			"import android.content.Context;\n" +

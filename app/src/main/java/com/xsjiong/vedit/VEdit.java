@@ -293,7 +293,9 @@ public class VEdit extends View {
 				canvas.drawBitmap(tmp, 0, y, ContentPaint);
 				if ((y += TextHeight) > height) break;
 			}
-		st = System.currentTimeMillis() - st;
-		Log.i("VEdit", "耗时1: " + st);
+		if (G.LOG_TIME) {
+			st = System.currentTimeMillis() - st;
+			Log.i("VEdit", "耗时1: " + st);
+		}
 	}
 }
