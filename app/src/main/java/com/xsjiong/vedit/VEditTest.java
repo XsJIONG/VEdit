@@ -23,7 +23,6 @@ public class VEditTest extends View {
 	// --------------------
 
 	public static final int LINENUM_SPLIT_WIDTH = 7;
-	public static final boolean USE_WHOLE_LINE_DRAWING = false;
 	public static final int EXPAND_SIZE = 64;
 	public static final int EMPTY_CHAR_WIDTH = 10;
 	public static final int SCROLL_TO_CURSOR_EXTRA = 20;
@@ -50,13 +49,15 @@ public class VEditTest extends View {
 	private int _YScrollRange;
 	private float LineNumberWidth;
 	private int _maxOSX = 20, _maxOSY = 20;
-	private TextRegion _Selection = new TextRegion();
-	private int _ComposingStart = -1, _ComposingEnd = 0;
-	private float _CursorWidth = 2;
+	private int _SStart, _SEnd;
+	private int _CursorLine, _CursorColumn;
+	private int _ComposingStart = -1, _ComposingEnd;
+	private float _CursorWidth = 2, _ComposingWidth = 3;
 	private float _LinePaddingTop = 5, _LinePaddingBottom = 5;
 	private int _ColorSplitLine = 0xFF2196F3;
 	private int _ColorSelectedLine = 0x3B2196F3;
 	private int _ColorCursor = 0xFFFF5722;
+	private int _ColorComposing = 0xFF222222;
 	private float _ContentLeftPadding = 7;
 	private int _TextLength;
 	private boolean _Editable = true;
@@ -95,6 +96,7 @@ public class VEditTest extends View {
 		ContentPaint.setColor(Color.BLACK);
 		ColorPaint = new Paint();
 		ColorPaint.setAntiAlias(false);
+		ColorPaint.setStyle(Paint.Style.FILL);
 		ColorPaint.setDither(false);
 		_IMM = (InputMethodManager) getContext().getSystemService(Context.INPUT_METHOD_SERVICE);
 		setFocusable(true);
@@ -105,6 +107,24 @@ public class VEditTest extends View {
 	// ------------------
 	// -----Methods------
 	// ------------------
+
+	public void setComposingWidth(float width) {
+		_ComposingWidth = width;
+		invalidate();
+	}
+
+	public float getComposingWidth() {
+		return _ComposingWidth;
+	}
+
+	public void setComposingColor(int color) {
+		_ColorComposing = color;
+		invalidate();
+	}
+
+	public int getComposingColor() {
+		return _ColorComposing;
+	}
 
 	public void setTypeface(Typeface typeface) {
 		ContentPaint.setTypeface(typeface);
@@ -176,10 +196,6 @@ public class VEditTest extends View {
 		ContentPaint.setTextSize(size);
 		LineNumberPaint.setTextSize(size);
 		onFontChange();
-	}
-
-	public int getSelctionStartLine() {
-		return _Selection.StartLine;
 	}
 
 	public void getSelectedLineColor(int color) {
@@ -256,74 +272,38 @@ public class VEditTest extends View {
 	}
 
 	public int getSelectionStart() {
-		return E[_Selection.StartLine] + _Selection.StartColumn;
+		return _SStart;
 	}
 
 	public int getSelectionEnd() {
-		return E[_Selection.EndLine] + _Selection.EndColumn;
-	}
-
-	public void setSelection(int pos) {
-		int line = findLine(pos);
-		int column = pos - E[line];
-		_Selection.StartLine = _Selection.EndLine = line;
-		_Selection.StartColumn = _Selection.EndColumn = column;
-		invalidate();
+		return _SEnd;
 	}
 
 	public void setSelectionStart(int st) {
-		_Selection.StartLine = findLine(st);
-		_Selection.StartColumn = st - E[_Selection.StartLine];
+		_SStart = st;
 		invalidate();
 	}
 
 	public void setSelectionEnd(int en) {
-		_Selection.EndLine = findLine(en);
-		_Selection.EndColumn = en - E[_Selection.EndLine];
+		_SEnd = en;
 		invalidate();
 	}
 
 	public void setSelectionRange(int st, int en) {
-		_Selection.StartLine = findLine(st);
-		_Selection.StartColumn = st - E[_Selection.StartLine];
-		_Selection.EndLine = findLine(en);
-		_Selection.EndColumn = en - E[_Selection.EndLine];
+		_SStart = st;
+		_SEnd = en;
 		invalidate();
 	}
 
-	public void setSelectionStartLine(int line) {
-		_Selection.StartLine = line;
-		_Selection.StartColumn = Math.min(_Selection.StartColumn, E[line + 1] - E[line] - 1);
+	public void setCursor(int pos) {
+		_CursorLine = findLine(pos);
+		_CursorColumn = pos - E[_CursorLine];
 		invalidate();
 	}
 
-	public void setSelectionEndLine(int line) {
-		_Selection.EndLine = line;
-		_Selection.EndColumn = Math.min(_Selection.EndColumn, E[line + 1] - E[line] - 1);
-		invalidate();
-	}
-
-	public void setSelectionLine(int line) {
-		_Selection.StartLine = _Selection.EndLine = line;
-		_Selection.StartColumn = _Selection.EndColumn = 0;
-		invalidate();
-	}
-
-	public void setSelectionStart(int line, int column) {
-		_Selection.StartLine = line;
-		_Selection.StartColumn = column;
-		invalidate();
-	}
-
-	public void setSelectionEnd(int line, int column) {
-		_Selection.EndLine = line;
-		_Selection.EndColumn = column;
-		invalidate();
-	}
-
-	public void setSelection(int line, int column) {
-		_Selection.StartLine = _Selection.EndLine = line;
-		_Selection.StartColumn = _Selection.EndColumn = column;
+	public void setCursor(int line, int column) {
+		_CursorLine = line;
+		_CursorColumn = column;
 		invalidate();
 	}
 
@@ -379,6 +359,7 @@ public class VEditTest extends View {
 	}
 
 	public void showIME() {
+		_IMM.viewClicked(this);
 		_IMM.showSoftInput(this, 0);
 	}
 
@@ -387,26 +368,25 @@ public class VEditTest extends View {
 	}
 
 	public void deleteChar() {
-		if (isRangeSelecting()) return;
-		int[] ret = deleteChar(_Selection.StartLine, _Selection.StartColumn);
-		_Selection.StartLine = _Selection.EndLine = ret[0];
-		_Selection.StartColumn = _Selection.EndColumn = ret[1];
+		int[] ret = deleteChar(_CursorLine, _CursorColumn);
+		_CursorLine = ret[0];
+		_CursorColumn = ret[1];
 	}
 
 	public int[] deleteChar(int line, int column) {
 		if ((!_Editable) || (line == 1 && column == 0)) return new int[] {line, column};
-		int st = E[line] + column;
-		System.arraycopy(S, st, S, st - 1, _TextLength - st);
+		int pos = E[line] + column;
+		System.arraycopy(S, pos, S, pos - 1, _TextLength - pos);
 		if (column == 0) {
 			column = E[line] - E[line - 1] - 1;
 			System.arraycopy(E, line + 1, E, line, E[0] - line);
 			E[0]--;
 			for (int i = line; i <= E[0]; i++) E[i]--;
-			line = --_Selection.EndLine;
+			line--;
 			onLineChange();
 		} else {
 			for (int i = line + 1; i <= E[0]; i++) E[i]--;
-			column = --_Selection.EndColumn;
+			column--;
 		}
 		_TextLength--;
 		postInvalidate();
@@ -414,39 +394,38 @@ public class VEditTest extends View {
 	}
 
 	public boolean isRangeSelecting() {
-		return _Selection.StartLine != _Selection.EndLine || _Selection.StartColumn != _Selection.EndColumn;
+		return _SStart != -1;
 	}
 
 	public void insertChar(char c) {
-		if (isRangeSelecting()) return;
-		int[] ret = insertChar(_Selection.StartLine, _Selection.StartColumn, c);
-		_Selection.StartLine = _Selection.EndLine = ret[0];
-		_Selection.StartColumn = _Selection.EndColumn = ret[1];
+		int[] ret = insertChar(_CursorLine, _CursorColumn, c);
+		_CursorLine = ret[0];
+		_CursorColumn = ret[1];
 	}
 
 	public int[] insertChar(int line, int column, char c) {
 		if (!_Editable) return new int[] {line, column};
-		int st = E[line] + column;
+		int pos = E[line] + column;
 		if (S.length <= _TextLength + 1) {
 			char[] ns = new char[S.length + EXPAND_SIZE];
-			System.arraycopy(S, 0, ns, 0, st);
-			if (st != _TextLength) System.arraycopy(S, st, ns, st + 1, _TextLength - st);
+			System.arraycopy(S, 0, ns, 0, pos);
+			if (pos != _TextLength) System.arraycopy(S, pos, ns, pos + 1, _TextLength - pos);
 			S = ns;
-			S[st] = c;
+			S[pos] = c;
 			ns = null;
 			// TODO Should GC Here?
 			System.gc();
 		} else {
 			// 没办法用System.arraycopy，因为考虑到顺序，可能会覆盖
-			for (int i = _TextLength; i >= st; i--) S[i + 1] = S[i];
-			S[st] = c;
+			for (int i = _TextLength; i >= pos; i--) S[i + 1] = S[i];
+			S[pos] = c;
 		}
 		if (c == '\n') {
 			// 理由同上，注意这是>不是>=
 			if (E[0] + 1 == E.length) expandEArray();
 			for (int i = E[0]; i > line; i--) E[i + 1] = E[i] + 1;
 			E[0]++;
-			E[line + 1] = st + 1;
+			E[line + 1] = pos + 1;
 			line++;
 			column = 0;
 			onLineChange();
@@ -479,18 +458,18 @@ public class VEditTest extends View {
 
 	public void makeLineVisible(int line) {
 		final float nh = TextHeight + _LinePaddingTop + _LinePaddingBottom;
-		float y = nh * _Selection.StartLine - getHeight();
+		float y = nh * line - getHeight();
 		if (getScrollY() < y) {
 			scrollTo(getScrollX(), (int) Math.ceil(y));
 			postInvalidate();
 		}
 	}
 
-	public void makeCursorVisible(int line, int cursor) {
+	public void makeCursorVisible(int line, int column) {
+		int pos = E[line] + column;
 		makeLineVisible(line);
-		cursor = E[line] + cursor;
 		float sum = (_ShowLineNumber ? (LineNumberWidth + LINENUM_SPLIT_WIDTH) : 0) + _ContentLeftPadding;
-		for (int i = E[line]; i < cursor; i++)
+		for (int i = E[line]; i < pos; i++)
 			sum += getCharWidth(S[i]);
 		if (sum - _CursorWidth / 2 < getScrollX()) {
 			scrollTo((int) (sum - _CursorWidth / 2) - SCROLL_TO_CURSOR_EXTRA, getScrollY());
@@ -499,6 +478,11 @@ public class VEditTest extends View {
 			scrollTo((int) Math.ceil(sum + _CursorWidth / 2 - getWidth()) + SCROLL_TO_CURSOR_EXTRA, getScrollY());
 			postInvalidate();
 		}
+	}
+
+	public void cancelSelection() {
+		_SStart = -1;
+		postInvalidate();
 	}
 
 
@@ -511,7 +495,7 @@ public class VEditTest extends View {
 	protected void onSizeChanged(int w, int h, int oldw, int oldh) {
 		super.onSizeChanged(w, h, oldw, oldh);
 		if ((!isRangeSelecting()) && h < oldh)
-			makeLineVisible(_Selection.StartLine);
+			makeLineVisible(_CursorLine);
 	}
 
 	@Override
@@ -618,8 +602,14 @@ public class VEditTest extends View {
 
 	@Override
 	public InputConnection onCreateInputConnection(EditorInfo outAttrs) {
-		// TODO 在切换出输入法后切换到SelectedLine
-		outAttrs.imeOptions = EditorInfo.IME_FLAG_NO_FULLSCREEN;
+		outAttrs.imeOptions = EditorInfo.IME_NULL
+				| EditorInfo.IME_FLAG_NO_ENTER_ACTION
+				| EditorInfo.IME_FLAG_NO_FULLSCREEN
+				| EditorInfo.IME_FLAG_NO_ACCESSORY_ACTION;
+		outAttrs.inputType = EditorInfo.TYPE_MASK_CLASS
+				| EditorInfo.TYPE_CLASS_TEXT
+				| EditorInfo.TYPE_TEXT_FLAG_MULTI_LINE
+				| EditorInfo.TYPE_TEXT_FLAG_IME_MULTI_LINE;
 		if (_InputConnection == null)
 			_InputConnection = new VInputConnection(this);
 		_ComposingStart = -1;
@@ -652,7 +642,7 @@ public class VEditTest extends View {
 			canvas.drawText(S, E[line], E[line + 1] - E[line] - 1, 0, y, ContentPaint);
 			y += TextHeight;
 		}*/
-		final boolean isSingleSelection = (!isRangeSelecting()) && _Editable;
+		final boolean showCursor = (!isRangeSelecting()) && _Editable;
 		final float nh = TextHeight + _LinePaddingBottom + _LinePaddingTop;
 		final float bottom = getScrollY() + getHeight() + YOffset;
 		final int right = getScrollX() + getWidth();
@@ -664,70 +654,64 @@ public class VEditTest extends View {
 		float XStart, wtmp, x;
 		int i, en;
 		int tot;
+		float composingStartX;
 		if (_ShowLineNumber) {
 			ColorPaint.setColor(_ColorSplitLine);
 			canvas.drawRect(LineNumberWidth, getScrollY(), LineNumberWidth + LINENUM_SPLIT_WIDTH, getScrollY() + getHeight(), ColorPaint);
 		}
 		LineDraw:
 		for (; line < E[0]; line++) {
-			if (isSingleSelection && _Selection.StartLine == line) {
+			if (showCursor && _CursorLine == line) {
 				ColorPaint.setColor(_ColorSelectedLine);
 				canvas.drawRect(xo - _ContentLeftPadding, y - YOffset - _LinePaddingTop, right, y + TextHeight - YOffset + _LinePaddingBottom, ColorPaint);
 			}
 			if (_ShowLineNumber)
 				canvas.drawText(Integer.toString(line), LineNumberWidth, y, LineNumberPaint);
-			if (USE_WHOLE_LINE_DRAWING) {
-				tot = E[line + 1] - E[line] - 1;
-				if (tot > TMP.length) TMP = new char[tot];
-				System.arraycopy(S, E[line], TMP, 0, tot = (E[line + 1] - E[line] - 1));
-				canvas.drawText(TMP, 0, tot, xo, y, ContentPaint);
-			} else {
-				i = E[line];
-				en = E[line + 1] - 1;
-				XStart = xo;
-				if (getScrollX() > XStart)
-					while ((wtmp = XStart + getCharWidth(S[i])) < getScrollX()) {
-						if (++i >= en) {
-							if ((y += nh) >= bottom) break LineDraw;
-							continue LineDraw;
-						}
-						XStart = wtmp;
+			i = E[line];
+			en = E[line + 1] - 1;
+			XStart = xo;
+			if (getScrollX() > XStart)
+				while ((wtmp = XStart + getCharWidth(S[i])) < getScrollX()) {
+					if (++i >= en) {
+						if ((y += nh) >= bottom) break LineDraw;
+						continue LineDraw;
 					}
-				tot = 0;
-				for (x = XStart; i < en && x <= right; i++) {
-					if (isSingleSelection && i == stPos) {
-						ColorPaint.setColor(_ColorCursor);
-						canvas.drawRect(x - _CursorWidth / 2, y - YOffset - _LinePaddingTop, x + _CursorWidth / 2, y - YOffset + TextHeight + _LinePaddingBottom, ColorPaint);
-					}
-					if ((TMP[tot] = S[i]) == '\t') {
-						XStart += TABWidth;
-						x += TABWidth;
-					} else
-						x += getCharWidth(TMP[tot++]);
+					XStart = wtmp;
 				}
-				if (isSingleSelection && line == _Selection.StartLine && i == stPos) {
+			composingStartX = (i >= _ComposingStart) ? XStart : -1;
+			tot = 0;
+			for (x = XStart; i < en && x <= right; i++) {
+				if (composingStartX == -1 && i == _ComposingStart)
+					composingStartX = x;
+				if (showCursor && i == stPos) {
 					ColorPaint.setColor(_ColorCursor);
-					canvas.drawRect(x - _CursorWidth / 2, y - YOffset - _LinePaddingTop, x + _CursorWidth / 2, y - YOffset + TextHeight + _LinePaddingBottom, ColorPaint);
+					ColorPaint.setStrokeWidth(_CursorWidth);
+					canvas.drawLine(x, y - YOffset - _LinePaddingTop, x, y - YOffset + TextHeight + _LinePaddingBottom, ColorPaint);
+//					canvas.drawRect(x - _CursorWidth / 2, y - YOffset - _LinePaddingTop, x + _CursorWidth / 2, y - YOffset + TextHeight + _LinePaddingBottom, ColorPaint);
 				}
-				canvas.drawText(TMP, 0, tot, XStart, y, ContentPaint);
+				if ((TMP[tot] = S[i]) == '\t') {
+					XStart += TABWidth;
+					x += TABWidth;
+				} else
+					x += getCharWidth(TMP[tot++]);
+				if (_ComposingStart != -1 && i == _ComposingEnd) {
+					ColorPaint.setColor(_ColorComposing);
+					ColorPaint.setStrokeWidth(_ComposingWidth);
+					canvas.drawLine(composingStartX, y, x, y, ColorPaint);
+				}
 			}
-			if ((y += nh) >= bottom) break;
-		}
-		if (USE_WHOLE_LINE_DRAWING) {
-			if (isSingleSelection) {
-				System.arraycopy(S, E[_Selection.StartLine], TMP, 0, _Selection.StartColumn);
-				float cursorStart = ContentPaint.measureText(TMP, 0, _Selection.StartColumn) + xo;
+			if (showCursor && i == stPos) {
 				ColorPaint.setColor(_ColorCursor);
-				float yst = (_Selection.StartLine - 1) * nh;
-				canvas.drawRect(cursorStart - _CursorWidth / 2, yst, cursorStart + _CursorWidth / 2, yst + nh, ColorPaint);
+				canvas.drawRect(x - _CursorWidth / 2, y - YOffset - _LinePaddingTop, x + _CursorWidth / 2, y - YOffset + TextHeight + _LinePaddingBottom, ColorPaint);
 			}
+			canvas.drawText(TMP, 0, tot, XStart, y, ContentPaint);
+			if ((y += nh) >= bottom) break;
 		}
 		if (G.LOG_TIME) {
 			st = System.currentTimeMillis() - st;
 			Log.i("VEdit", "耗时3: " + st);
 		}
 	}
-
 
 	// -------------------------
 	// -----Private Methods-----
@@ -776,9 +760,9 @@ public class VEditTest extends View {
 		x -= _ContentLeftPadding;
 		if (_ShowLineNumber)
 			x -= (LineNumberWidth + LINENUM_SPLIT_WIDTH);
-		_Selection.StartLine = _Selection.EndLine = (int) Math.ceil(y / (TextHeight + _LinePaddingTop + _LinePaddingBottom));
-		final int en = E[_Selection.StartLine + 1] - 1;
-		int ret = E[_Selection.StartLine];
+		_CursorLine = (int) Math.ceil(y / (TextHeight + _LinePaddingTop + _LinePaddingBottom));
+		final int en = E[_CursorLine + 1] - 1;
+		int ret = E[_CursorLine];
 		for (float sum = -x; ret < en; ret++) {
 			if ((sum += getCharWidth(S[ret])) >= 0) {
 				if ((-(sum - getCharWidth(S[ret]))) > sum) // 是前面的更逼近一些
@@ -786,8 +770,8 @@ public class VEditTest extends View {
 				break;
 			}
 		}
-		_Selection.StartColumn = _Selection.EndColumn = ret - E[_Selection.StartLine];
-		makeCursorVisible(_Selection.StartLine, _Selection.StartColumn);
+		_CursorColumn = ret - E[_CursorLine];
+		makeCursorVisible(_CursorLine, _CursorColumn);
 		showIME();
 		invalidate();
 	}
@@ -841,28 +825,6 @@ public class VEditTest extends View {
 	// -----Inner Classes-----
 	// -----------------------
 
-	private static class TextRegion {
-		int StartLine, StartColumn;
-		int EndLine, EndColumn;
-
-		public TextRegion() {
-			StartLine = EndLine = 1;
-			StartColumn = EndColumn = 0;
-		}
-
-		public TextRegion(int line, int column) {
-			StartLine = EndLine = line;
-			StartColumn = EndColumn = column;
-		}
-
-		public TextRegion(int stLine, int stColumn, int enLine, int enColumn) {
-			this.StartLine = stLine;
-			this.StartColumn = stColumn;
-			this.EndLine = enLine;
-			this.EndColumn = enColumn;
-		}
-	}
-
 	private static class VInputConnection extends BaseInputConnection {
 		private VEditTest Q;
 
@@ -873,19 +835,16 @@ public class VEditTest extends View {
 
 		@Override
 		public CharSequence getTextBeforeCursor(int n, int flags) {
-			// TODO 这里需要判断单点选择吗？
 			int cursor = Q.getSelectionStart();
-			int start = Math.max(cursor - n, 0);
-			return new String(Q.S, start, cursor - start);
+			int st = Math.max(cursor - n, 0);
+			return new String(Q.S, st, cursor - st);
+			Mark
 		}
 
 		@Override
 		public CharSequence getTextAfterCursor(int n, int flags) {
-			int docLength = Q._TextLength;
 			int cursor = Q.getSelectionStart();
-			if ((cursor + n) >= docLength)
-				return new String(Q.S, cursor, docLength - cursor - 1);
-			return new String(Q.S, cursor, n);
+			return new String(Q.S, cursor, Math.min(cursor + n, Q._TextLength) - cursor);
 		}
 
 		@Override
@@ -902,23 +861,43 @@ public class VEditTest extends View {
 
 		@Override
 		public boolean setComposingRegion(int start, int end) {
+			Log.i("VEdit", "StartComposing: " + start + " " + end);
 			Q._ComposingStart = start;
 			Q._ComposingEnd = end;
-			Q.invalidate();
-			// TODO 这里返回值什么鬼？
+			Q.postInvalidate();
 			return true;
 		}
 
 		@Override
 		public boolean setComposingText(CharSequence text, int newCursorPosition) {
-			// TODO Complete Me!
-			return super.setComposingText(text, newCursorPosition);
+			Log.i("VEdit", "Composing " + text + " " + newCursorPosition);
+			return true;
+		}
+
+		@Override
+		public boolean finishComposingText() {
+			Q._ComposingStart = -1;
+			return true;
+		}
+
+		@Override
+		public boolean commitText(CharSequence text, int newCursorPosition) {
+			Log.i("VEdit", "CommitText " + text + " " + newCursorPosition);
+			return true;
 		}
 
 		@Override
 		public boolean sendKeyEvent(KeyEvent event) {
 			if (Q.processEvent(event)) return true;
 			return super.sendKeyEvent(event);
+		}
+
+		@Override
+		public boolean setSelection(int start, int end) {
+			Q._SStart = start;
+			Q._SEnd = end;
+			Q.postInvalidate();
+			return true;
 		}
 	}
 }
