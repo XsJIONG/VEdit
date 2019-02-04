@@ -2,7 +2,6 @@ package com.xsjiong.vedit;
 
 import android.content.Context;
 import android.graphics.*;
-import android.support.annotation.Nullable;
 import android.text.InputType;
 import android.text.TextPaint;
 import android.util.AttributeSet;
@@ -49,7 +48,7 @@ public class VEditTest extends View {
 	private int _YScrollRange;
 	private float LineNumberWidth;
 	private int _maxOSX = 20, _maxOSY = 20;
-	private int _SStart, _SEnd;
+	private int _SStart = -1, _SEnd;
 	private int _CursorLine, _CursorColumn;
 	private int _ComposingStart = -1, _ComposingEnd;
 	private float _CursorWidth = 2, _ComposingWidth = 3;
@@ -485,6 +484,15 @@ public class VEditTest extends View {
 		postInvalidate();
 	}
 
+	public int getCursorPosition() {
+		return E[_CursorLine] + _CursorColumn;
+	}
+
+	public void insertString(String s) {
+		for (int i=0;i<s.length();i++)
+			insertChar(s.charAt(i));
+	}
+
 
 	// --------------------------
 	// -----Override Methods-----
@@ -617,7 +625,7 @@ public class VEditTest extends View {
 	}
 
 	@Override
-	protected void onFocusChanged(boolean gainFocus, int direction, @Nullable Rect previouslyFocusedRect) {
+	protected void onFocusChanged(boolean gainFocus, int direction, Rect previouslyFocusedRect) {
 		if (!gainFocus)
 			// TODO FLAG
 			_IMM.hideSoftInputFromWindow(getWindowToken(), InputMethodManager.HIDE_NOT_ALWAYS);
@@ -647,7 +655,7 @@ public class VEditTest extends View {
 		final float bottom = getScrollY() + getHeight() + YOffset;
 		final int right = getScrollX() + getWidth();
 		final float xo = (_ShowLineNumber ? LineNumberWidth + LINENUM_SPLIT_WIDTH : 0) + _ContentLeftPadding;
-		final int stPos = getSelectionStart();
+		final int cursorPos = getCursorPosition();
 
 		int line = Math.max((int) (getScrollY() / nh) + 1, 1);
 		float y = (line - 1) * nh + YOffset + _LinePaddingTop;
@@ -683,7 +691,7 @@ public class VEditTest extends View {
 			for (x = XStart; i < en && x <= right; i++) {
 				if (composingStartX == -1 && i == _ComposingStart)
 					composingStartX = x;
-				if (showCursor && i == stPos) {
+				if (showCursor && i == cursorPos) {
 					ColorPaint.setColor(_ColorCursor);
 					ColorPaint.setStrokeWidth(_CursorWidth);
 					canvas.drawLine(x, y - YOffset - _LinePaddingTop, x, y - YOffset + TextHeight + _LinePaddingBottom, ColorPaint);
@@ -695,12 +703,12 @@ public class VEditTest extends View {
 				} else
 					x += getCharWidth(TMP[tot++]);
 				if (_ComposingStart != -1 && i == _ComposingEnd) {
-					ColorPaint.setColor(_ColorComposing);
-					ColorPaint.setStrokeWidth(_ComposingWidth);
-					canvas.drawLine(composingStartX, y, x, y, ColorPaint);
+					ColorPaint.setColor(_ColorCursor);
+					ColorPaint.setStrokeWidth(_CursorWidth);
+					canvas.drawLine(x, y - YOffset - _LinePaddingTop, x, y - YOffset + TextHeight + _LinePaddingBottom, ColorPaint);
 				}
 			}
-			if (showCursor && i == stPos) {
+			if (showCursor && i == cursorPos) {
 				ColorPaint.setColor(_ColorCursor);
 				canvas.drawRect(x - _CursorWidth / 2, y - YOffset - _LinePaddingTop, x + _CursorWidth / 2, y - YOffset + TextHeight + _LinePaddingBottom, ColorPaint);
 			}
@@ -835,15 +843,15 @@ public class VEditTest extends View {
 
 		@Override
 		public CharSequence getTextBeforeCursor(int n, int flags) {
-			int cursor = Q.getSelectionStart();
+			int cursor = Q.getCursorPosition();
 			int st = Math.max(cursor - n, 0);
 			return new String(Q.S, st, cursor - st);
-			Mark
+			//Mark
 		}
 
 		@Override
 		public CharSequence getTextAfterCursor(int n, int flags) {
-			int cursor = Q.getSelectionStart();
+			int cursor = Q.getCursorPosition();
 			return new String(Q.S, cursor, Math.min(cursor + n, Q._TextLength) - cursor);
 		}
 
@@ -861,7 +869,6 @@ public class VEditTest extends View {
 
 		@Override
 		public boolean setComposingRegion(int start, int end) {
-			Log.i("VEdit", "StartComposing: " + start + " " + end);
 			Q._ComposingStart = start;
 			Q._ComposingEnd = end;
 			Q.postInvalidate();
@@ -870,7 +877,6 @@ public class VEditTest extends View {
 
 		@Override
 		public boolean setComposingText(CharSequence text, int newCursorPosition) {
-			Log.i("VEdit", "Composing " + text + " " + newCursorPosition);
 			return true;
 		}
 
@@ -882,7 +888,7 @@ public class VEditTest extends View {
 
 		@Override
 		public boolean commitText(CharSequence text, int newCursorPosition) {
-			Log.i("VEdit", "CommitText " + text + " " + newCursorPosition);
+			Q.insertString(text.toString());
 			return true;
 		}
 

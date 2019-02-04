@@ -1,15 +1,15 @@
 package com.xsjiong.vedit;
 
+import android.app.Activity;
 import android.graphics.Color;
 import android.os.Bundle;
-import android.support.v7.app.AppCompatActivity;
-import android.support.v7.widget.LinearLayoutCompat;
+import android.widget.LinearLayout;
 import android.widget.TextView;
 
 import java.io.FileInputStream;
 
-public class MainActivity extends AppCompatActivity {
-	private LinearLayoutCompat C;
+public class MainActivity extends Activity {
+	private LinearLayout C;
 	private VEdit V1;
 	private OtherLongEditText V2;
 	private VEditTest V3;
@@ -28,9 +28,9 @@ public class MainActivity extends AppCompatActivity {
 			} catch (Throwable t) {
 				t.printStackTrace();
 			}
-		C = new LinearLayoutCompat(this);
-		C.setOrientation(LinearLayoutCompat.HORIZONTAL);
-		LinearLayoutCompat.LayoutParams P = new LinearLayoutCompat.LayoutParams(0, -1);
+		C = new LinearLayout(this);
+		C.setOrientation(LinearLayout.HORIZONTAL);
+		LinearLayout.LayoutParams P = new LinearLayout.LayoutParams(0, -1);
 		P.weight = 1;
 		/*V1 = new VEdit(this);
 		V1.setBackgroundColor(Color.WHITE);
