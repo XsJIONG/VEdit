@@ -25,15 +25,21 @@ public class TextBuffer implements CharSequence {
 	protected final static int MIN_GAP_SIZE = 50;
 	protected char[] _contents;
 	protected int _gapStartIndex;
-	/** One past end of gap */
+	/**
+	 * One past end of gap
+	 */
 	protected int _gapEndIndex;
 	protected int _lineCount;
-	/** The number of times memory is allocated for the buffer */
+	/**
+	 * The number of times memory is allocated for the buffer
+	 */
 	private int _allocMultiplier;
 	private TextBufferCache _cache;
 	private UndoStack _undoStack;
 
-	/** Continuous seq of chars that have the same format (color, font, etc.) */
+	/**
+	 * Continuous seq of chars that have the same format (color, font, etc.)
+	 */
 	protected List<Pair> _spans;
 
 
@@ -51,13 +57,13 @@ public class TextBuffer implements CharSequence {
 	/**
 	 * Calculate the implementation size of the char array needed to store
 	 * textSize number of characters.
-	 * The implementation size may be greater than textSize because of buffer 
+	 * The implementation size may be greater than textSize because of buffer
 	 * space, cached characters and so on.
-	 * 
+	 *
 	 * @param textSize
-	 * @return The size, measured in number of chars, required by the 
-	 * 		implementation to store textSize characters, or -1 if the request 
-	 * 		cannot be satisfied
+	 * @return The size, measured in number of chars, required by the
+	 * implementation to store textSize characters, or -1 if the request
+	 * cannot be satisfied
 	 */
 	public static int memoryNeeded(int textSize) {
 		long bufferSize = textSize + MIN_GAP_SIZE + 1; // extra char for EOF
@@ -75,9 +81,9 @@ public class TextBuffer implements CharSequence {
 	}
 
 	synchronized public void setBuffer(char[] newBuffer) {
-		int lineCount=1;
-		int len=newBuffer.length;
-		for (int i=0;i < len;i++) {
+		int lineCount = 1;
+		int len = newBuffer.length;
+		for (int i = 0; i < len; i++) {
 			if (newBuffer[i] == '\n')
 				lineCount++;
 		}
@@ -87,7 +93,7 @@ public class TextBuffer implements CharSequence {
 
 	/**
 	 * Returns a string of text corresponding to the line with index lineNumber.
-	 * 
+	 *
 	 * @param lineNumber The index of the line of interest
 	 * @return The text on lineNumber, or an empty string if the line does not exist
 	 */
@@ -105,7 +111,7 @@ public class TextBuffer implements CharSequence {
 	/**
 	 * Get the offset of the first character of the line with index lineNumber.
 	 * The offset is counted from the beginning of the text.
-	 * 
+	 *
 	 * @param lineNumber The index of the line of interest
 	 * @return The character offset of lineNumber, or -1 if the line does not exist
 	 */
@@ -144,7 +150,7 @@ public class TextBuffer implements CharSequence {
 		int offset = logicalToRealIndex(startOffset);
 
 		TextWarriorException.assertVerbose(isValid(startOffset),
-										   "findCharOffsetBackward: Invalid startingOffset given");
+				"findCharOffsetBackward: Invalid startingOffset given");
 
 		while ((workingLine < targetLine) && (offset < _contents.length)) {
 			if (_contents[offset] == Language.NEWLINE) {
@@ -173,11 +179,11 @@ public class TextBuffer implements CharSequence {
 		}
 
 		TextWarriorException.assertVerbose(isValid(startOffset),
-										   "findCharOffsetBackward: Invalid startOffset given");
+				"findCharOffsetBackward: Invalid startOffset given");
 
 		int workingLine = startLine;
 		int offset = logicalToRealIndex(startOffset);
-		while (workingLine > (targetLine - 1) && offset >= 0) { 
+		while (workingLine > (targetLine - 1) && offset >= 0) {
 			// skip behind the gap
 			if (offset == _gapEndIndex) {
 				offset = _gapStartIndex;
@@ -197,7 +203,7 @@ public class TextBuffer implements CharSequence {
 			++charOffset;
 		} else {
 			TextWarriorException.assertVerbose(false,
-											   "findCharOffsetBackward: Invalid cache entry or line arguments");
+					"findCharOffsetBackward: Invalid cache entry or line arguments");
 			charOffset = -1;
 		}
 
@@ -206,7 +212,7 @@ public class TextBuffer implements CharSequence {
 
 	/**
 	 * Get the line number that charOffset is on
-	 * 
+	 *
 	 * @return The line number that charOffset is on, or -1 if charOffset is invalid
 	 */
 	synchronized public int findLineNumber(int charOffset) {
@@ -223,7 +229,7 @@ public class TextBuffer implements CharSequence {
 
 		if (targetOffset > offset) {
 			// search forward
-			while ((offset < targetOffset) && (offset < _contents.length)) {			
+			while ((offset < targetOffset) && (offset < _contents.length)) {
 				if (_contents[offset] == Language.NEWLINE) {
 					++line;
 					lastKnownLine = line;
@@ -270,7 +276,7 @@ public class TextBuffer implements CharSequence {
 	 * Finds the number of char on the specified line.
 	 * All valid lines contain at least one char, which may be a non-printable
 	 * one like \n, \t or EOF.
-	 * 
+	 *
 	 * @return The number of chars in lineNumber, or 0 if the line does not exist.
 	 */
 	synchronized public int getLineSize(int lineNumber) {
@@ -281,7 +287,7 @@ public class TextBuffer implements CharSequence {
 			pos = logicalToRealIndex(pos);
 			//TODO consider adding check for (pos < _contents.length) in case EOF is not properly set
 			while (_contents[pos] != Language.NEWLINE &&
-				   _contents[pos] != Language.EOF) {
+					_contents[pos] != Language.EOF) {
 				++lineLength;
 				++pos;
 
@@ -299,9 +305,9 @@ public class TextBuffer implements CharSequence {
 	/**
 	 * Gets the char at charOffset
 	 * Does not do bounds-checking.
-	 * 
-	 * @return The char at charOffset. If charOffset is invalid, the result 
-	 * 		is undefined.
+	 *
+	 * @return The char at charOffset. If charOffset is invalid, the result
+	 * is undefined.
 	 */
 	synchronized public char charAt(int charOffset) {
 		return _contents[logicalToRealIndex(charOffset)];
@@ -309,10 +315,10 @@ public class TextBuffer implements CharSequence {
 
 	/**
 	 * Gets up to maxChars number of chars starting at charOffset
-	 * 
-	 * @return The chars starting from charOffset, up to a maximum of maxChars. 
-	 * 		An empty array is returned if charOffset is invalid or maxChars is
-	 *		non-positive.
+	 *
+	 * @return The chars starting from charOffset, up to a maximum of maxChars.
+	 * An empty array is returned if charOffset is invalid or maxChars is
+	 * non-positive.
 	 */
 	synchronized public CharSequence subSequence(int charOffset, int maxChars) {
 		if (!isValid(charOffset) || maxChars <= 0) {
@@ -339,7 +345,7 @@ public class TextBuffer implements CharSequence {
 
 	/**
 	 * Gets charCount number of consecutive characters starting from _gapStartIndex.
-	 * 
+	 * <p>
 	 * Only UndoStack should use this method. No error checking is done.
 	 */
 	char[] gapSubSequence(int charCount) {
@@ -354,11 +360,11 @@ public class TextBuffer implements CharSequence {
 
 	/**
 	 * Insert all characters in c into position charOffset.
-	 * 
+	 * <p>
 	 * No error checking is done
 	 */
 	public synchronized void insert(char[] c, int charOffset, long timestamp,
-									boolean undoable) {
+	                                boolean undoable) {
 		if (undoable) {
 			_undoStack.captureInsert(charOffset, c.length, timestamp);
 		}
@@ -390,13 +396,13 @@ public class TextBuffer implements CharSequence {
 	}
 
 	/**
-	 * Deletes up to totalChars number of char starting from position 
+	 * Deletes up to totalChars number of char starting from position
 	 * charOffset, inclusive.
-	 * 
+	 * <p>
 	 * No error checking is done
 	 */
 	public synchronized void delete(int charOffset, int totalChars, long timestamp,
-									boolean undoable) {
+	                                boolean undoable) {
 		if (undoable) {
 			_undoStack.captureDelete(charOffset, totalChars, timestamp);
 		}
@@ -426,7 +432,7 @@ public class TextBuffer implements CharSequence {
 	/**
 	 * Moves _gapStartIndex by displacement units. Note that displacement can be
 	 * negative and will move _gapStartIndex to the left.
-	 * 
+	 * <p>
 	 * Only UndoStack should use this method to carry out a simple undo/redo
 	 * of insertions/deletions. No error checking is done.
 	 */
@@ -492,9 +498,9 @@ public class TextBuffer implements CharSequence {
 
 	/**
 	 * Copies _contents into a buffer that is larger by
-	 * 		minIncrement + INITIAL_GAP_SIZE * _allocCount bytes.
-	 * 
-	 * _allocMultiplier doubles on every call to this method, to avoid the 
+	 * minIncrement + INITIAL_GAP_SIZE * _allocCount bytes.
+	 * <p>
+	 * _allocMultiplier doubles on every call to this method, to avoid the
 	 * overhead of repeated allocations.
 	 */
 	protected void growBufferBy(int minIncrement) {
@@ -519,7 +525,7 @@ public class TextBuffer implements CharSequence {
 	}
 
 	/**
-	 * Returns the total number of characters in the text, including the 
+	 * Returns the total number of characters in the text, including the
 	 * EOF sentinel char
 	 */
 	final synchronized public int getTextLength() {
@@ -542,7 +548,7 @@ public class TextBuffer implements CharSequence {
 		if (isBeforeGap(i)) {
 			return i;
 		} else {
-			return i + gapSize(); 
+			return i + gapSize();
 		}
 	}
 
@@ -550,7 +556,7 @@ public class TextBuffer implements CharSequence {
 		if (isBeforeGap(i)) {
 			return i;
 		} else {
-			return i - gapSize(); 
+			return i - gapSize();
 		}
 	}
 
@@ -560,7 +566,7 @@ public class TextBuffer implements CharSequence {
 
 	public void clearSpans() {
 		_spans = new Vector<Pair>();
-	    _spans.add(new Pair(0, Lexer.NORMAL));
+		_spans.add(new Pair(0, Lexer.NORMAL));
 	}
 
 	public List<Pair> getSpans() {
@@ -569,11 +575,11 @@ public class TextBuffer implements CharSequence {
 
 	/**
 	 * Sets the spans to use in the document.
-	 * Spans are continuous sequences of characters that have the same format 
+	 * Spans are continuous sequences of characters that have the same format
 	 * like color, font, etc.
-	 * 
-	 * @param spans A collection of Pairs, where Pair.first is the start 
-	 * 		position of the token, and Pair.second is the type of the token.
+	 *
+	 * @param spans A collection of Pairs, where Pair.first is the start
+	 *              position of the token, and Pair.second is the type of the token.
 	 */
 	public void setSpans(List<Pair> spans) {
 		_spans = spans;
@@ -587,7 +593,7 @@ public class TextBuffer implements CharSequence {
 	}
 
 	/**
-	 * Signals the beginning of a series of insert/delete operations that can be 
+	 * Signals the beginning of a series of insert/delete operations that can be
 	 * undone/redone as a single unit
 	 */
 	public void beginBatchEdit() {
@@ -595,7 +601,7 @@ public class TextBuffer implements CharSequence {
 	}
 
 	/**
-	 * Signals the end of a series of insert/delete operations that can be 
+	 * Signals the end of a series of insert/delete operations that can be
 	 * undone/redone as a single unit
 	 */
 	public void endBatchEdit() {
@@ -621,10 +627,10 @@ public class TextBuffer implements CharSequence {
 	@Override
 	public String toString() {
 		// TODO: Implement this method
-		int len=getTextLength();
-		StringBuffer buf=new StringBuffer();
-		for (int i=0;i < len;i++) {
-			char c=charAt(i);
+		int len = getTextLength();
+		StringBuffer buf = new StringBuffer();
+		for (int i = 0; i < len; i++) {
+			char c = charAt(i);
 			if (c == Language.EOF)
 				break;
 			buf.append(c);

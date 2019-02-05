@@ -237,7 +237,7 @@ public class TextEditor extends FreeScrollingTextField {
 		super.onDraw(canvas);
 		if (G.LOG_TIME) {
 			st = System.currentTimeMillis() - st;
-			Log.i("VEdit", "耗时5: " + st);
+			Log.i(G.T, "耗时5: " + st);
 		}
 	}
 }
