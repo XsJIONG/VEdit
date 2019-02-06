@@ -204,7 +204,7 @@ public interface G {
 			"\t\tonFontChange();\n" +
 			"\t}\n" +
 			"\n" +
-			"\tpublic void getSelectedLineColor(int color) {\n" +
+			"\tpublic void setSelectionColor(int color) {\n" +
 			"\t\t_ColorSelectedLine = color;\n" +
 			"\t\tinvalidate();\n" +
 			"\t}\n" +
@@ -219,7 +219,7 @@ public interface G {
 			"\t\tinvalidate();\n" +
 			"\t}\n" +
 			"\n" +
-			"\tpublic int getSelectedLineColor() {\n" +
+			"\tpublic int setSelectionColor() {\n" +
 			"\t\treturn _ColorSelectedLine;\n" +
 			"\t}\n" +
 			"\n" +
@@ -490,7 +490,7 @@ public interface G {
 			"\t\tpostInvalidate();\n" +
 			"\t}\n" +
 			"\n" +
-			"\tpublic void finishSelection() {\n" +
+			"\tpublic void finishSelecting() {\n" +
 			"\t\t_SStart = -1;\n" +
 			"\t\tpostInvalidate();\n" +
 			"\t}\n" +

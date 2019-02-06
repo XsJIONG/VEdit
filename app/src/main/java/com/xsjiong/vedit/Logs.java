@@ -8,7 +8,7 @@ import java.nio.channels.WritableByteChannel;
 
 public final class Logs {
 	public static boolean EnableLog = true;
-	private static final String T = "Dimension5";
+	private static final String T = "VEdit";
 	private static RandomAccessFile Q;
 	private static File Origin = null;
 	private static final byte[] Writing = new byte[0];

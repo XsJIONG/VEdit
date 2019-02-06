@@ -5,16 +5,16 @@ import android.graphics.Color;
 import android.graphics.Typeface;
 import android.os.Bundle;
 import android.util.TypedValue;
+import android.view.ActionMode;
+import android.widget.EditText;
 import android.widget.LinearLayout;
 import android.widget.TextView;
 
 import java.io.FileInputStream;
-import java.io.FileOutputStream;
 
 public class MainActivity extends Activity {
 	private LinearLayout C;
 	private VEdit Content;
-	private TextEditor V5;
 
 	@Override
 	protected void onCreate(Bundle savedInstanceState) {
@@ -35,13 +35,14 @@ public class MainActivity extends Activity {
 		P.weight = 1;
 		Content = new VEdit(this);
 		Content.setTypeface(Typeface.createFromAsset(getAssets(), "FiraCode-Medium.ttf"));
-		Content.setTextSize(TypedValue.COMPLEX_UNIT_SP, 15);
+		Content.setTextSize(TypedValue.COMPLEX_UNIT_SP, 14);
 		Content.setBackgroundColor(Color.WHITE);
 		Content.setText(T);
 		C.addView(Content, P);
-		/*Content2 = new TextEditor(this);
-		Content2.setText(T);
-		C.addView(Content2, P);*/
+		EditText ed = new EditText(this);
+		ed.setText(G.D);
+		ed.setTextColor(Color.BLACK);
+		C.addView(ed, P);
 		setContentView(C);
 	}
 
