@@ -7,6 +7,7 @@ import android.graphics.Canvas;
 import android.graphics.Color;
 import android.graphics.Paint;
 import android.graphics.Typeface;
+import android.os.AsyncTask;
 import android.os.Bundle;
 import android.os.Handler;
 import android.text.InputType;
@@ -18,6 +19,8 @@ import android.view.*;
 import android.view.inputmethod.*;
 import android.widget.OverScroller;
 
+import java.io.File;
+import java.io.FileInputStream;
 import java.util.Arrays;
 
 import static com.xsjiong.vedit.G.T;
@@ -1226,4 +1229,22 @@ public class VEdit extends View {
 			return false;
 		}
 	}
+
+	private static class LoadFileTask extends AsyncTask<File,Float,String> {
+		@Override
+		protected String doInBackground(File... files) {
+			File file = files[0];
+			try {
+				FileInputStream in = new FileInputStream(file);
+				byte[] ret = new byte[in.available()];
+				in.read(ret);
+				in.close();
+				return new String(ret);
+			} catch (Throwable t) {
+				Mark
+			}
+		}
+	}
+}
+
 }

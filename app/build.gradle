@@ -23,5 +23,6 @@ android {
 }
 
 dependencies {
-	//implementation fileTree(dir: 'libs', include: ['*.jar'])
+	implementation fileTree(dir: 'libs', include: ['*.jar'])
+	implementation 'com.github.castorflex.smoothprogressbar:library:1.1.0'
 }

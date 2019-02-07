@@ -4,16 +4,21 @@ import android.content.Context;
 import android.graphics.Canvas;
 import android.graphics.Color;
 import android.graphics.Typeface;
+import android.os.AsyncTask;
 import android.util.AttributeSet;
 import android.util.DisplayMetrics;
 import android.util.Log;
 import android.util.TypedValue;
 import android.view.KeyEvent;
+import android.view.inputmethod.InputConnection;
 import com.myopicmobile.textwarrior.android.ClipboardPanel;
 import com.myopicmobile.textwarrior.android.FreeScrollingTextField;
 import com.myopicmobile.textwarrior.android.YoyoNavigationMethod;
 import com.myopicmobile.textwarrior.common.*;
 
+import java.io.ByteArrayOutputStream;
+import java.io.File;
+import java.io.FileInputStream;
 import java.lang.reflect.Field;
 
 public class TextEditor extends FreeScrollingTextField {
