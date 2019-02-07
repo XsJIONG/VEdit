@@ -3,7 +3,7 @@ package com.xsjiong.vedit;
 public interface G {
 	String T = "VEdit";
 
-	boolean LOG_TIME = true;
+	boolean LOG_TIME = false;
 
 	String D = "package com.xsjiong.vedit;\n" +
 			"\n" +

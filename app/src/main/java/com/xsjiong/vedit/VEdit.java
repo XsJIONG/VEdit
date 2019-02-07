@@ -3,7 +3,10 @@ package com.xsjiong.vedit;
 import android.content.ClipData;
 import android.content.ClipboardManager;
 import android.content.Context;
-import android.graphics.*;
+import android.graphics.Canvas;
+import android.graphics.Color;
+import android.graphics.Paint;
+import android.graphics.Typeface;
 import android.os.Bundle;
 import android.os.Handler;
 import android.text.InputType;
@@ -24,6 +27,7 @@ public class VEdit extends View {
 	// -----Constants------
 	// --------------------
 
+	public static final int DOUBLE_CLICK_INTERVAL = 200;
 	public static final int LINENUM_SPLIT_WIDTH = 7;
 	public static final int EXPAND_SIZE = 64;
 	public static final int EMPTY_CHAR_WIDTH = 10;
@@ -53,20 +57,20 @@ public class VEdit extends View {
 	private int _maxOSX = 20, _maxOSY = 20;
 	private int _SStart = -1, _SEnd;
 	private int _CursorLine = 1, _CursorColumn = 0;
-	private int _ComposingStart = -1, _ComposingEnd;
-	private boolean _isComposing = false;
-	private float _CursorWidth = 2, _ComposingWidth = 3;
+	private float _CursorWidth = 2;
 	private float _LinePaddingTop = 5, _LinePaddingBottom = 5;
 	private int _ColorSplitLine = 0xFF2196F3;
 	private int _ColorSelection = 0x3B2196F3;
 	private int _ColorCursor = 0xFFFF5722;
-	private int _ColorComposing = 0xFF222222;
 	private float _ContentLeftPadding = 7;
 	private int _TextLength;
 	private boolean _Editable = true;
 	private VInputConnection _InputConnection;
 	private boolean _ShowLineNumber = true;
 	private float[] _CharWidths = new float[65536];
+	private InputMethodManager _IMM;
+	private long LastClickTime = 0;
+	private int _ComposingStart = -1;
 
 
 	// -----------------------
@@ -102,30 +106,13 @@ public class VEdit extends View {
 		ColorPaint.setDither(false);
 		setFocusable(true);
 		setFocusableInTouchMode(true);
+		_IMM = (InputMethodManager) getContext().getSystemService(Context.INPUT_METHOD_SERVICE);
 	}
 
 
 	// ------------------
 	// -----Methods------
 	// ------------------
-
-	public void setComposingWidth(float width) {
-		_ComposingWidth = width;
-		invalidate();
-	}
-
-	public float getComposingWidth() {
-		return _ComposingWidth;
-	}
-
-	public void setComposingColor(int color) {
-		_ColorComposing = color;
-		invalidate();
-	}
-
-	public int getComposingColor() {
-		return _ColorComposing;
-	}
 
 	public void setTypeface(Typeface typeface) {
 		ContentPaint.setTypeface(typeface);
@@ -144,7 +131,8 @@ public class VEdit extends View {
 
 	public void setEditable(boolean editable) {
 		_Editable = editable;
-		if (_Editable) restartInput();
+		if (_Editable && _IMM != null)
+			_IMM.restartInput(this);
 		else hideIME();
 		invalidate();
 	}
@@ -260,7 +248,8 @@ public class VEdit extends View {
 		if (s == null) s = new char[0];
 		this.S = s;
 		_TextLength = s.length;
-		if (_Editable) restartInput();
+		if (_Editable && _IMM != null)
+			_IMM.restartInput(this);
 		calculateEnters();
 		onLineChange();
 		requestLayout();
@@ -356,22 +345,14 @@ public class VEdit extends View {
 		return _TextLength;
 	}
 
-	public boolean isComposing() {
-		return _isComposing;
-	}
-
 	public void showIME() {
-		InputMethodManager manager = getInputMethodManager();
-		if (manager != null) {
-			manager.viewClicked(this);
-			manager.showSoftInput(this, 0);
-		}
+		if (_IMM != null)
+			_IMM.showSoftInput(this, 0);
 	}
 
 	public void hideIME() {
-		InputMethodManager manager = getInputMethodManager();
-		if (manager != null && manager.isActive(this))
-			manager.hideSoftInputFromWindow(getWindowToken(), 0);
+		if (_IMM != null && _IMM.isActive(this))
+			_IMM.hideSoftInputFromWindow(getWindowToken(), 0);
 	}
 
 	public void deleteChar() {
@@ -486,11 +467,6 @@ public class VEdit extends View {
 			scrollTo((int) Math.ceil(sum + _CursorWidth / 2 - getWidth()) + SCROLL_TO_CURSOR_EXTRA, getScrollY());
 			postInvalidate();
 		}
-	}
-
-	public void finishComposing() {
-		_isComposing = false;
-		postInvalidate();
 	}
 
 	public void finishSelecting() {
@@ -622,17 +598,6 @@ public class VEdit extends View {
 		_CursorColumn = count - E[_CursorLine];
 	}
 
-	public void setComposingText(char[] s) {
-		if (!_isComposing) {
-			_ComposingStart = _ComposingEnd = E[_CursorLine] + _CursorColumn;
-			_isComposing = true;
-		}
-		// TODO Make me 1
-		replace(_ComposingStart, _ComposingEnd, s);
-		_ComposingEnd = _ComposingStart + s.length;
-//		moveCursor(_ComposingEnd);
-	}
-
 	public float getCharWidth(char c) {
 		float ret = _CharWidths[c];
 		if (ret == 0) {
@@ -645,15 +610,29 @@ public class VEdit extends View {
 	}
 
 	public void commitText(char[] cs) {
+		_ComposingStart = -1;
 		if (isRangeSelecting()) {
 			replace(_SStart, _SEnd, cs);
-			_SStart = -1;
+			finishSelecting();
 		} else insertChars(cs);
 	}
 
 	public String getSelectedText() {
 		if (!isRangeSelecting()) return null;
 		return new String(S, _SStart, _SEnd - _SStart);
+	}
+
+	public void expandSelectionFrom(int pos) {
+		if (pos == _TextLength - 1) return;
+		int st, en;
+		for (st = pos; st >= 0 && isSelectableChar(S[st]); st--) ;
+		for (en = pos + 1; en < _TextLength && isSelectableChar(S[en]); en++) ;
+		if (st + 1 == en) return;
+		setSelectionRange(st + 1, en);
+	}
+
+	public static boolean isSelectableChar(char c) {
+		return (c >= '0' && c <= '9') || (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || c == '.' || Character.isJavaIdentifierPart(c);
 	}
 
 
@@ -677,12 +656,15 @@ public class VEdit extends View {
 	@Override
 	public boolean onTouchEvent(MotionEvent event) {
 		SpeedCalc.addMovement(event);
+		boolean s = super.onTouchEvent(event);
 		switch (event.getActionMasked()) {
 			case MotionEvent.ACTION_DOWN:
 				_stX = _lastX = event.getX();
 				_stY = _lastY = event.getY();
 				if (!Scroller.isFinished())
 					Scroller.abortAnimation();
+				if (!isFocused())
+					requestFocus();
 				return true;
 			case MotionEvent.ACTION_MOVE:
 				float x = event.getX(), y = event.getY();
@@ -722,9 +704,10 @@ public class VEdit extends View {
 			case MotionEvent.ACTION_CANCEL:
 			case MotionEvent.ACTION_UP:
 				SpeedCalc.computeCurrentVelocity(_flingFactor);
-				if (!isDragging)
+				if (!isDragging) {
 					onClick(event.getX() + getScrollX(), event.getY() + getScrollY());
-				else {
+					performClick();
+				} else {
 					isDragging = false;
 					int speedX = (int) SpeedCalc.getXVelocity();
 					int speedY = (int) SpeedCalc.getYVelocity();
@@ -742,7 +725,7 @@ public class VEdit extends View {
 				}
 				return true;
 		}
-		return super.onTouchEvent(event);
+		return s;
 	}
 
 	@Override
@@ -780,9 +763,10 @@ public class VEdit extends View {
 				| EditorInfo.TYPE_CLASS_TEXT
 				| EditorInfo.TYPE_TEXT_FLAG_MULTI_LINE
 				| EditorInfo.TYPE_TEXT_FLAG_IME_MULTI_LINE;
+		outAttrs.initialSelStart = _SStart;
+		outAttrs.initialSelEnd = isRangeSelecting() ? -1 : _SEnd;
 		if (_InputConnection == null)
 			_InputConnection = new VInputConnection(this);
-		_isComposing = false;
 		return _InputConnection;
 	}
 
@@ -790,14 +774,17 @@ public class VEdit extends View {
 	public void setEnabled(boolean enabled) {
 		if (!enabled) hideIME();
 		super.setEnabled(enabled);
-		if (enabled && _Editable) restartInput();
+		if (enabled && _Editable && _IMM != null) _IMM.restartInput(this);
 	}
 
 	// 绘制函数
 	@Override
 	protected void onDraw(Canvas canvas) {
+		if (isRangeSelecting())
+			Log.i(T, "Selection: " + _SStart + " " + _SEnd);
 		long st = System.currentTimeMillis();
-		final boolean showCursor = (!isRangeSelecting()) && _Editable;
+		final boolean showSelecting = isRangeSelecting();
+		final boolean showCursor = (!showSelecting) && _Editable;
 		final float nh = TextHeight + _LinePaddingBottom + _LinePaddingTop;
 		final float bottom = getScrollY() + getHeight() + YOffset;
 		final int right = getScrollX() + getWidth();
@@ -809,7 +796,7 @@ public class VEdit extends View {
 		float XStart, wtmp, x;
 		int i, en;
 		int tot;
-		float composingStartX, selectionStartX;
+		float selectionStartX;
 		if (_ShowLineNumber) {
 			ColorPaint.setColor(_ColorSplitLine);
 			canvas.drawRect(LineNumberWidth, getScrollY(), LineNumberWidth + LINENUM_SPLIT_WIDTH, getScrollY() + getHeight(), ColorPaint);
@@ -818,7 +805,6 @@ public class VEdit extends View {
 		for (; line < E[0]; line++) {
 			if (_ShowLineNumber)
 				canvas.drawText(Integer.toString(line), LineNumberWidth, y, LineNumberPaint);
-			// TODO HighLight 应该不是showCursor来判断吧？
 			if (showCursor && _CursorLine == line) {
 				ColorPaint.setColor(_ColorSelection);
 				canvas.drawRect(xo - _ContentLeftPadding, y - YOffset - _LinePaddingTop, right, y + TextHeight - YOffset + _LinePaddingBottom, ColorPaint);
@@ -834,12 +820,9 @@ public class VEdit extends View {
 					}
 					XStart = wtmp;
 				}
-			composingStartX = (i >= _ComposingStart && _isComposing) ? XStart : -1;
 			selectionStartX = (i >= _SStart && _SStart != -1) ? XStart : -1;
 			tot = 0;
 			for (x = XStart; i < en && x <= right; i++) {
-				if (i == _ComposingStart && _isComposing)
-					composingStartX = x;
 				if (i == _SStart)
 					selectionStartX = x;
 				if (showCursor && i == cursorPos) {
@@ -852,15 +835,14 @@ public class VEdit extends View {
 					x += _CharWidths[CHAR_TAB];
 				} else
 					x += getCharWidth(TMP[tot++]);
-				if (_isComposing && i == _ComposingEnd - 1 && composingStartX != -1) {
-					ColorPaint.setColor(_ColorComposing);
-					ColorPaint.setStrokeWidth(_ComposingWidth);
-					canvas.drawLine(composingStartX, y, x, y, ColorPaint);
-				}
 				if (_SStart != -1 && i == _SEnd - 1) {
 					ColorPaint.setColor(_ColorSelection);
 					canvas.drawRect(selectionStartX, y - YOffset - _LinePaddingTop, x, y - YOffset + TextHeight + _LinePaddingBottom, ColorPaint);
 				}
+			}
+			if (i > _SStart && i < _SEnd - 1 && showSelecting) {
+				ColorPaint.setColor(_ColorSelection);
+				canvas.drawRect(selectionStartX, y - YOffset - _LinePaddingTop, x, y - YOffset + TextHeight + _LinePaddingBottom, ColorPaint);
 			}
 			if (showCursor && i == cursorPos) {
 				ColorPaint.setColor(_ColorCursor);
@@ -906,7 +888,12 @@ public class VEdit extends View {
 		}
 		switch (event.getKeyCode()) {
 			case KeyEvent.KEYCODE_DEL:
-				deleteChar();
+				if (isRangeSelecting()) {
+					int line = findLine(_SEnd);
+					int[] ret = deleteChars(line, _SEnd - E[line], _SEnd - _SStart);
+					moveCursor(ret[0], ret[1]);
+					finishSelecting();
+				} else deleteChar();
 				break;
 			case KeyEvent.KEYCODE_ENTER:
 				insertChar('\n');
@@ -939,14 +926,19 @@ public class VEdit extends View {
 
 	private void onClick(float x, float y) {
 		if (!_Editable) return;
+		long time = System.currentTimeMillis();
+		boolean dc = time - LastClickTime < DOUBLE_CLICK_INTERVAL;
+		LastClickTime = time;
 		x -= _ContentLeftPadding;
 		if (_ShowLineNumber)
 			x -= (LineNumberWidth + LINENUM_SPLIT_WIDTH);
 		_CursorLine = Math.min((int) Math.ceil(y / (TextHeight + _LinePaddingTop + _LinePaddingBottom)), E[0] - 1);
+		finishSelecting();
 		final int en = E[_CursorLine + 1] - 1;
 		int ret = E[_CursorLine];
 		for (float sum = -x; ret < en; ret++) {
 			if ((sum += getCharWidth(S[ret])) >= 0) {
+				if (dc) expandSelectionFrom(ret);
 				if ((-(sum - getCharWidth(S[ret]))) > sum) // 是前面的更逼近一些
 					ret++;
 				break;
@@ -954,9 +946,13 @@ public class VEdit extends View {
 		}
 		_CursorColumn = ret - E[_CursorLine];
 		makeCursorVisible(_CursorLine, _CursorColumn);
-		finishSelecting();
-		if (isFocused())
-			showIME();
+		_ComposingStart = -1;
+		if (_IMM != null) {
+			_IMM.viewClicked(this);
+			_IMM.showSoftInput(this, 0);
+			onCursorUpdate();
+			//_IMM.restartInput(this);
+		}
 		postInvalidate();
 	}
 
@@ -984,18 +980,30 @@ public class VEdit extends View {
 		Scroller.springBack(getScrollX(), getScrollY(), 0, Integer.MAX_VALUE, 0, _YScrollRange);
 	}
 
-	private InputMethodManager getInputMethodManager() {
-		return (InputMethodManager) getContext().getSystemService(Context.INPUT_METHOD_SERVICE);
-	}
-
 	private ClipboardManager getClipboardManager() {
 		return (ClipboardManager) getContext().getSystemService(Context.CLIPBOARD_SERVICE);
 	}
 
-	private void restartInput() {
-		InputMethodManager manager = getInputMethodManager();
-		if (manager != null)
-			manager.restartInput(this);
+	private void onCursorUpdate() {
+		if (_IMM != null) {
+			int sst, sen;
+			if (isRangeSelecting()) {
+				sst = _SStart;
+				sen = _SEnd;
+			} else sst = sen = getCursorPosition();
+			_IMM.updateSelection(this, sst, sen, -1, -1);
+//			_IMM.restartInput(this);
+		}
+	}
+
+	private void setComposingText(char[] cs) {
+		if (_ComposingStart == -1) {
+			_ComposingStart = getCursorPosition();
+			insertChars(cs);
+		} else
+			replace(_ComposingStart, getCursorPosition(), cs);
+		if (cs.length == 0)
+			_ComposingStart = -1;
 	}
 
 
@@ -1015,7 +1023,6 @@ public class VEdit extends View {
 		private VEdit Q;
 
 		public VInputConnection(VEdit parent) {
-			// super(parent, true);
 			Q = parent;
 		}
 
@@ -1034,7 +1041,7 @@ public class VEdit extends View {
 
 		@Override
 		public CharSequence getSelectedText(int flags) {
-			if (Q._SStart == -1) return "";
+			if (!Q.isRangeSelecting()) return "";
 			return new String(Q.S, Q._SStart, Q._SEnd - Q._SStart);
 		}
 
@@ -1046,47 +1053,35 @@ public class VEdit extends View {
 
 		@Override
 		public boolean setComposingRegion(int start, int end) {
-			Q._ComposingStart = start;
-			Q._ComposingEnd = end;
-			Q._isComposing = true;
-			Q.postInvalidate();
+			Log.i(T, "setRegion: " + start + " " + end);
+			if (start == end)
+				Q._ComposingStart = -1;
+			else
+				Q._ComposingStart = start;
 			return true;
 		}
 
 		@Override
 		public boolean setComposingText(CharSequence text, int newCursorPosition) {
+			Log.i(T, "setComposing: " + text);
 			char[] cs = new char[text.length()];
 			for (int i = 0; i < cs.length; i++) cs[i] = text.charAt(i);
-			/*if (newCursorPosition > 0)
-				newCursorPosition += Q._ComposingEnd - 1;
-			else
-				newCursorPosition += Q._isComposing ? Q.getCursorPosition() : Q._ComposingStart;
-			if (newCursorPosition < 0) newCursorPosition = 0;
-			if (newCursorPosition > Q._TextLength)
-				newCursorPosition = Q._TextLength;*/
 			Q.setComposingText(cs);
 			return true;
 		}
 
 		@Override
 		public boolean finishComposingText() {
-			Q.finishComposing();
+			Q._ComposingStart = -1;
 			return true;
 		}
 
 		@Override
 		public boolean commitText(CharSequence text, int newCursorPosition) {
+			Log.i(T, "CommitText:" + text);
 			char[] cs = new char[text.length()];
 			for (int i = 0; i < cs.length; i++) cs[i] = text.charAt(i);
-			if (Q.isComposing()) {
-				Q.setComposingText(cs);
-				if (newCursorPosition > 1)
-					Q.moveCursor(Q.getCursorPosition() + newCursorPosition - 1);
-				else if (newCursorPosition <= 0)
-					Q.moveCursor(Q.getCursorPosition() - text.length() - newCursorPosition);
-				Q.finishComposing();
-			} else
-				Q.commitText(cs);
+			Q.commitText(cs);
 			return true;
 		}
 
@@ -1098,6 +1093,11 @@ public class VEdit extends View {
 
 		@Override
 		public boolean setSelection(int start, int end) {
+			if (start == end) {
+				Q.finishSelecting();
+				Q.moveCursor(start);
+				return true;
+			}
 			Q._SStart = start;
 			Q._SEnd = end;
 			Q.postInvalidate();
@@ -1112,6 +1112,7 @@ public class VEdit extends View {
 
 		@Override
 		public boolean deleteSurroundingText(int beforeLength, int afterLength) {
+			Log.i(T, "Delete: " + beforeLength + " " + afterLength);
 			int pos = Q.getCursorPosition() + afterLength;
 			int line = Q.findLine(pos);
 			int[] ret = Q.deleteChars(line, pos - Q.E[line], afterLength + beforeLength);
@@ -1121,7 +1122,7 @@ public class VEdit extends View {
 
 		@Override
 		public boolean deleteSurroundingTextInCodePoints(int beforeLength, int afterLength) {
-			// TODO Ha?
+			Log.i(T, "Delete: " + beforeLength + " " + afterLength);
 			deleteSurroundingText(beforeLength, afterLength);
 			return true;
 		}
@@ -1165,7 +1166,13 @@ public class VEdit extends View {
 					}
 					break;
 				case android.R.id.paste:
-					Q.commitText(Q.getClipboardManager().getPrimaryClip().toString().toCharArray());
+					ClipData data = Q.getClipboardManager().getPrimaryClip();
+					if (data != null && data.getItemCount() > 0) {
+						CharSequence s = data.getItemAt(0).coerceToText(Q.getContext());
+						char[] cs = new char[s.length()];
+						for (int i = 0; i < cs.length; i++) cs[i] = s.charAt(i);
+						Q.commitText(cs);
+					}
 					break;
 				case android.R.id.selectAll:
 					Q.setSelectionRange(0, Q._TextLength);

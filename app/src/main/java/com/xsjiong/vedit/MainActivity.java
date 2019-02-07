@@ -1,6 +1,7 @@
 package com.xsjiong.vedit;
 
 import android.app.Activity;
+import android.content.Intent;
 import android.graphics.Color;
 import android.graphics.Typeface;
 import android.os.Bundle;
@@ -39,10 +40,6 @@ public class MainActivity extends Activity {
 		Content.setBackgroundColor(Color.WHITE);
 		Content.setText(T);
 		C.addView(Content, P);
-		EditText ed = new EditText(this);
-		ed.setText(G.D);
-		ed.setTextColor(Color.BLACK);
-		C.addView(ed, P);
 		setContentView(C);
 	}
 
