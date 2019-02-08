@@ -4,7 +4,6 @@ import android.app.Dialog;
 import android.content.Context;
 import android.view.Window;
 import android.view.WindowManager;
-import com.jxs.dimension5.R;
 
 public class FullScreenDialog extends Dialog {
 	public FullScreenDialog(Context cx) {

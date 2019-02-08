@@ -7,7 +7,6 @@ import android.graphics.Canvas;
 import android.graphics.Color;
 import android.graphics.Paint;
 import android.graphics.Typeface;
-import android.os.AsyncTask;
 import android.os.Bundle;
 import android.os.Handler;
 import android.text.InputType;
@@ -18,9 +17,13 @@ import android.util.TypedValue;
 import android.view.*;
 import android.view.inputmethod.*;
 import android.widget.OverScroller;
+import com.xsjiong.vlexer.VJavaScriptLexer;
+import com.xsjiong.vlexer.VLexer;
 
-import java.io.File;
-import java.io.FileInputStream;
+import java.io.*;
+import java.net.URL;
+import java.nio.charset.Charset;
+import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 
 import static com.xsjiong.vedit.G.T;
@@ -47,7 +50,7 @@ public class VEdit extends View {
 	private float YOffset;
 	private float TextHeight;
 	private int ContentHeight;
-	private char[] S;
+	private char[] S = new char[0];
 	private int[] E = new int[257];
 	private int _minFling, _touchSlop;
 	private float _lastX, _lastY, _stX, _stY;
@@ -74,6 +77,7 @@ public class VEdit extends View {
 	private InputMethodManager _IMM;
 	private long LastClickTime = 0;
 	private int _ComposingStart = -1;
+	private VLexer _Lexer = new VJavaScriptLexer();
 
 
 	// -----------------------
@@ -110,12 +114,46 @@ public class VEdit extends View {
 		setFocusable(true);
 		setFocusableInTouchMode(true);
 		_IMM = (InputMethodManager) getContext().getSystemService(Context.INPUT_METHOD_SERVICE);
+		E[0] = 2;
+		E[1] = 0;
+		E[2] = 1; // 来自我自己把全部删了之后的E信息
+		_TextLength = 0;
 	}
 
 
 	// ------------------
 	// -----Methods------
 	// ------------------
+
+	public void loadURL(String url) throws IOException {
+		loadURL(new URL(url));
+	}
+
+	public void loadURL(URL url) throws IOException {
+		loadStream(url.openStream());
+	}
+
+	public void loadFile(String filepath) throws IOException {
+		loadFile(new File(filepath));
+	}
+
+	public void loadFile(File file) throws IOException {
+		loadStream(new FileInputStream(file));
+	}
+
+	public void loadStream(InputStream stream) throws IOException {
+		loadStream(stream, StandardCharsets.UTF_8);
+	}
+
+	public void loadStream(InputStream stream, Charset charset) throws IOException {
+		byte[] buf = new byte[1024];
+		int read;
+		ByteArrayOutputStream out = new ByteArrayOutputStream();
+		while ((read = stream.read(buf)) != -1) out.write(buf, 0, read);
+		stream.close();
+		out.close();
+		setText(new String(out.toByteArray(), charset));
+	}
 
 	public void setTypeface(Typeface typeface) {
 		ContentPaint.setTypeface(typeface);
@@ -254,6 +292,7 @@ public class VEdit extends View {
 		if (_Editable && _IMM != null)
 			_IMM.restartInput(this);
 		calculateEnters();
+		_Lexer.setText(s);
 		onLineChange();
 		requestLayout();
 		postInvalidate();
@@ -481,7 +520,12 @@ public class VEdit extends View {
 		return E[line] + column;
 	}
 
+	public boolean isEmpty() {
+		return E[0] == 1;
+	}
+
 	public int getCursorPosition() {
+		if (isEmpty()) return 0;
 		return E[_CursorLine] + _CursorColumn;
 	}
 
@@ -783,8 +827,6 @@ public class VEdit extends View {
 	// 绘制函数
 	@Override
 	protected void onDraw(Canvas canvas) {
-		if (isRangeSelecting())
-			Log.i(T, "Selection: " + _SStart + " " + _SEnd);
 		long st = System.currentTimeMillis();
 		final boolean showSelecting = isRangeSelecting();
 		final boolean showCursor = (!showSelecting) && _Editable;
@@ -1056,7 +1098,6 @@ public class VEdit extends View {
 
 		@Override
 		public boolean setComposingRegion(int start, int end) {
-			Log.i(T, "setRegion: " + start + " " + end);
 			if (start == end)
 				Q._ComposingStart = -1;
 			else
@@ -1066,7 +1107,6 @@ public class VEdit extends View {
 
 		@Override
 		public boolean setComposingText(CharSequence text, int newCursorPosition) {
-			Log.i(T, "setComposing: " + text);
 			char[] cs = new char[text.length()];
 			for (int i = 0; i < cs.length; i++) cs[i] = text.charAt(i);
 			Q.setComposingText(cs);
@@ -1081,7 +1121,6 @@ public class VEdit extends View {
 
 		@Override
 		public boolean commitText(CharSequence text, int newCursorPosition) {
-			Log.i(T, "CommitText:" + text);
 			char[] cs = new char[text.length()];
 			for (int i = 0; i < cs.length; i++) cs[i] = text.charAt(i);
 			Q.commitText(cs);
@@ -1115,7 +1154,6 @@ public class VEdit extends View {
 
 		@Override
 		public boolean deleteSurroundingText(int beforeLength, int afterLength) {
-			Log.i(T, "Delete: " + beforeLength + " " + afterLength);
 			int pos = Q.getCursorPosition() + afterLength;
 			int line = Q.findLine(pos);
 			int[] ret = Q.deleteChars(line, pos - Q.E[line], afterLength + beforeLength);
@@ -1125,7 +1163,6 @@ public class VEdit extends View {
 
 		@Override
 		public boolean deleteSurroundingTextInCodePoints(int beforeLength, int afterLength) {
-			Log.i(T, "Delete: " + beforeLength + " " + afterLength);
 			deleteSurroundingText(beforeLength, afterLength);
 			return true;
 		}
@@ -1229,22 +1266,4 @@ public class VEdit extends View {
 			return false;
 		}
 	}
-
-	private static class LoadFileTask extends AsyncTask<File,Float,String> {
-		@Override
-		protected String doInBackground(File... files) {
-			File file = files[0];
-			try {
-				FileInputStream in = new FileInputStream(file);
-				byte[] ret = new byte[in.available()];
-				in.read(ret);
-				in.close();
-				return new String(ret);
-			} catch (Throwable t) {
-				Mark
-			}
-		}
-	}
-}
-
 }
