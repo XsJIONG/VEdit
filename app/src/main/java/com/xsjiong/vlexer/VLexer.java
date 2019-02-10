@@ -154,6 +154,7 @@ public abstract class VLexer {
 	}
 
 	public final int getPartStart(int ind) {
+		if (ind > DS[0]) return Integer.MAX_VALUE;
 		return DS[ind];
 	}
 
@@ -221,6 +222,7 @@ public abstract class VLexer {
 	public final void setText(char[] cs) {
 		this.S = cs;
 		this.P = this.DS[0] = 0;
+		this.L = cs.length;
 		short type;
 		while ((type = getNext()) != TYPE_EOF) {
 			if (++DS[0] == D.length)

@@ -3,6 +3,7 @@ package com.xsjiong.vedit;
 import android.app.Activity;
 import android.graphics.Color;
 import android.graphics.Typeface;
+import android.os.Build;
 import android.os.Bundle;
 import android.util.TypedValue;
 import android.widget.LinearLayout;

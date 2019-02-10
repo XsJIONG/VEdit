@@ -1,9 +1,9 @@
-package com.xsjiong.vedit.style;
+package com.xsjiong.vedit.scheme;
 
 import com.xsjiong.vlexer.VLexer;
 
-public class ColorSchemeLight extends ColorScheme {
-	public ColorSchemeLight() {
+public class VEditSchemeLight extends VEditScheme {
+	public VEditSchemeLight() {
 		setSplitLineColor(0xFF2196F3);
 		setSelectionColor(0x552196F3);
 		setCursorColor(0xFFFF5722);

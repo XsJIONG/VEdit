@@ -17,8 +17,9 @@ import android.util.TypedValue;
 import android.view.*;
 import android.view.inputmethod.*;
 import android.widget.OverScroller;
-import com.xsjiong.vedit.style.ColorScheme;
-import com.xsjiong.vedit.style.ColorSchemeLight;
+import com.xsjiong.vedit.scheme.VEditScheme;
+import com.xsjiong.vedit.scheme.VEditSchemeLight;
+import com.xsjiong.vlexer.VJavaLexer;
 import com.xsjiong.vlexer.VJavaScriptLexer;
 import com.xsjiong.vlexer.VLexer;
 
@@ -76,8 +77,8 @@ public class VEdit extends View {
 	private InputMethodManager _IMM;
 	private long LastClickTime = 0;
 	private int _ComposingStart = -1;
-	private ColorScheme _ColorScheme = new ColorSchemeLight();
-	private VLexer _Lexer = new VJavaScriptLexer();
+	private VEditScheme _Scheme = new VEditSchemeLight();
+	private VLexer _Lexer = new VJavaLexer();
 
 
 	// -----------------------
@@ -240,13 +241,13 @@ public class VEdit extends View {
 		onFontChange();
 	}
 
-	public void setColorScheme(ColorScheme scheme) {
-		this._ColorScheme = scheme;
+	public void setColorScheme(VEditScheme scheme) {
+		this._Scheme = scheme;
 		invalidate();
 	}
 
-	public ColorScheme getColorScheme() {
-		return _ColorScheme;
+	public VEditScheme getColorScheme() {
+		return _Scheme;
 	}
 
 	public void setTABSpaceCount(int count) {
@@ -855,15 +856,17 @@ public class VEdit extends View {
 		int tot;
 		float selectionStartX;
 		if (_ShowLineNumber) {
-			ColorPaint.setColor(_ColorScheme.getSplitLineColor());
+			ColorPaint.setColor(_Scheme.getSplitLineColor());
 			canvas.drawRect(LineNumberWidth, getScrollY(), LineNumberWidth + LINENUM_SPLIT_WIDTH, getScrollY() + getHeight(), ColorPaint);
 		}
+		int parseTot = 1;
+		int parseTarget = 0;
 		LineDraw:
 		for (; line < E[0]; line++) {
 			if (_ShowLineNumber)
 				canvas.drawText(Integer.toString(line), LineNumberWidth, y, LineNumberPaint);
 			if (showCursor && _CursorLine == line) {
-				ColorPaint.setColor(_ColorScheme.getSelectionColor());
+				ColorPaint.setColor(_Scheme.getSelectionColor());
 				canvas.drawRect(xo - _ContentLeftPadding, y - YOffset - _LinePaddingTop, right, y + TextHeight - YOffset + _LinePaddingBottom, ColorPaint);
 			}
 			i = E[line];
@@ -877,36 +880,51 @@ public class VEdit extends View {
 					}
 					XStart = wtmp;
 				}
+			if (_Lexer != null) {
+				while (i >= parseTarget && parseTot < _Lexer.getPartCount())
+					parseTarget = _Lexer.getPartStart(++parseTot);
+				ContentPaint.setColor(_Scheme.getTypeColor(_Lexer.getPartType(parseTot - 1)));
+			}
 			selectionStartX = (i >= _SStart && _SStart != -1) ? XStart : -1;
 			tot = 0;
 			for (x = XStart; i < en && x <= right; i++) {
+				if (i == parseTarget) {
+					canvas.drawText(TMP, 0, tot, XStart, y, ContentPaint);
+					XStart = x;
+					tot = 0;
+					ContentPaint.setColor(_Scheme.getTypeColor(_Lexer.getPartType(parseTot)));
+					if (parseTot < _Lexer.getPartCount()) parseTarget = _Lexer.getPartStart(++parseTot);
+				}
 				if (i == _SStart)
 					selectionStartX = x;
 				if (showCursor && i == cursorPos) {
-					ColorPaint.setColor(_ColorScheme.getCursorColor());
+					ColorPaint.setColor(_Scheme.getCursorColor());
 					ColorPaint.setStrokeWidth(_CursorWidth);
 					canvas.drawLine(x, y - YOffset - _LinePaddingTop, x, y - YOffset + TextHeight + _LinePaddingBottom, ColorPaint);
 				}
 				if ((TMP[tot] = S[i]) == '\t') {
+					canvas.drawText(TMP, 0, tot, XStart, y, ContentPaint);
+					XStart = x;
+					tot = 0;
 					XStart += _CharWidths[CHAR_TAB];
 					x += _CharWidths[CHAR_TAB];
 				} else
 					x += getCharWidth(TMP[tot++]);
 				if (_SStart != -1 && i == _SEnd - 1) {
-					ColorPaint.setColor(_ColorScheme.getSelectionColor());
+					ColorPaint.setColor(_Scheme.getSelectionColor());
 					canvas.drawRect(selectionStartX, y - YOffset - _LinePaddingTop, x, y - YOffset + TextHeight + _LinePaddingBottom, ColorPaint);
 				}
 			}
+			canvas.drawText(TMP, 0, tot, XStart, y, ContentPaint);
 			if (i > _SStart && i < _SEnd - 1 && showSelecting) {
-				ColorPaint.setColor(_ColorScheme.getSelectionColor());
+				ColorPaint.setColor(_Scheme.getSelectionColor());
 				canvas.drawRect(selectionStartX, y - YOffset - _LinePaddingTop, x, y - YOffset + TextHeight + _LinePaddingBottom, ColorPaint);
 			}
 			if (showCursor && i == cursorPos) {
-				ColorPaint.setColor(_ColorScheme.getCursorColor());
+				ColorPaint.setColor(_Scheme.getCursorColor());
 				ColorPaint.setStrokeWidth(_CursorWidth);
 				canvas.drawLine(x, y - YOffset - _LinePaddingTop, x, y - YOffset + TextHeight + _LinePaddingBottom, ColorPaint);
 			}
-			canvas.drawText(TMP, 0, tot, XStart, y, ContentPaint);
 			if ((y += nh) >= bottom) break;
 		}
 		if (G.LOG_TIME) {
