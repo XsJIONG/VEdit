@@ -48,6 +48,15 @@ public class VJavaLexer extends VLexer {
 				}
 				return TYPE_OPERATOR;
 			}
+			// 有 # 或者 #= 用法的运算符
+			case '<':
+			case '>':
+			case '!': {
+				if (P == S.length) return TYPE_OPERATOR;
+				if (S[P] == '=')
+					++P;
+				return TYPE_OPERATOR;
+			}
 			// 只有 # 用法的运算符
 			case '~':
 			case '?':
