@@ -4,21 +4,17 @@ import android.content.Context;
 import android.graphics.Canvas;
 import android.graphics.Color;
 import android.graphics.Typeface;
-import android.os.AsyncTask;
 import android.util.AttributeSet;
 import android.util.DisplayMetrics;
 import android.util.Log;
 import android.util.TypedValue;
 import android.view.KeyEvent;
-import android.view.inputmethod.InputConnection;
 import com.myopicmobile.textwarrior.android.ClipboardPanel;
 import com.myopicmobile.textwarrior.android.FreeScrollingTextField;
 import com.myopicmobile.textwarrior.android.YoyoNavigationMethod;
 import com.myopicmobile.textwarrior.common.*;
+import com.xsjiong.vedit.style.ColorScheme;
 
-import java.io.ByteArrayOutputStream;
-import java.io.File;
-import java.io.FileInputStream;
 import java.lang.reflect.Field;
 
 public class TextEditor extends FreeScrollingTextField {
@@ -75,31 +71,31 @@ public class TextEditor extends FreeScrollingTextField {
 	}
 
 	public void setKeywordColor(int color) {
-		getColorScheme().setColor(ColorScheme.Colorable.KEYWORD, color);
+		getColorScheme().setColor(com.xsjiong.vedit.style.ColorScheme.Colorable.KEYWORD, color);
 	}
 
 	public void setUserWordColor(int color) {
-		getColorScheme().setColor(ColorScheme.Colorable.LITERAL, color);
+		getColorScheme().setColor(com.xsjiong.vedit.style.ColorScheme.Colorable.LITERAL, color);
 	}
 
 	public void setBaseWordColor(int color) {
-		getColorScheme().setColor(ColorScheme.Colorable.NAME, color);
+		getColorScheme().setColor(com.xsjiong.vedit.style.ColorScheme.Colorable.NAME, color);
 	}
 
 	public void setStringColor(int color) {
-		getColorScheme().setColor(ColorScheme.Colorable.STRING, color);
+		getColorScheme().setColor(com.xsjiong.vedit.style.ColorScheme.Colorable.STRING, color);
 	}
 
 	public void setCommentColor(int color) {
-		getColorScheme().setColor(ColorScheme.Colorable.COMMENT, color);
+		getColorScheme().setColor(com.xsjiong.vedit.style.ColorScheme.Colorable.COMMENT, color);
 	}
 
 	public void setTextColor(int color) {
-		getColorScheme().setColor(ColorScheme.Colorable.FOREGROUND, color);
+		getColorScheme().setColor(com.xsjiong.vedit.style.ColorScheme.Colorable.FOREGROUND, color);
 	}
 
 	public void setTextHighlightColor(int color) {
-		getColorScheme().setColor(ColorScheme.Colorable.SELECTION_BACKGROUND, color);
+		getColorScheme().setColor(com.xsjiong.vedit.style.ColorScheme.Colorable.SELECTION_BACKGROUND, color);
 	}
 
 	public String getSelectedText() {

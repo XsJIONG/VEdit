@@ -29,10 +29,6 @@ public class VJavaLexer extends VLexer {
 	public VJavaLexer() {
 	}
 
-	public VJavaLexer(String s) {
-		super(s);
-	}
-
 	public VJavaLexer(char[] cs) {
 		super(cs);
 	}

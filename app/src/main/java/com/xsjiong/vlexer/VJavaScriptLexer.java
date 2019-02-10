@@ -17,10 +17,6 @@ public class VJavaScriptLexer extends VJavaLexer {
 	public VJavaScriptLexer() {
 	}
 
-	public VJavaScriptLexer(String s) {
-		super(s);
-	}
-
 	public VJavaScriptLexer(char[] cs) {
 		super(cs);
 	}

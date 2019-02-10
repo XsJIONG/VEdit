@@ -17,6 +17,8 @@ import android.util.TypedValue;
 import android.view.*;
 import android.view.inputmethod.*;
 import android.widget.OverScroller;
+import com.xsjiong.vedit.style.ColorScheme;
+import com.xsjiong.vedit.style.ColorSchemeLight;
 import com.xsjiong.vlexer.VJavaScriptLexer;
 import com.xsjiong.vlexer.VLexer;
 
@@ -65,9 +67,6 @@ public class VEdit extends View {
 	private int _CursorLine = 1, _CursorColumn = 0;
 	private float _CursorWidth = 2;
 	private float _LinePaddingTop = 5, _LinePaddingBottom = 5;
-	private int _ColorSplitLine = 0xFF2196F3;
-	private int _ColorSelection = 0x3B2196F3;
-	private int _ColorCursor = 0xFFFF5722;
 	private float _ContentLeftPadding = 7;
 	private int _TextLength;
 	private boolean _Editable = true;
@@ -77,6 +76,7 @@ public class VEdit extends View {
 	private InputMethodManager _IMM;
 	private long LastClickTime = 0;
 	private int _ComposingStart = -1;
+	private ColorScheme _ColorScheme = new ColorSchemeLight();
 	private VLexer _Lexer = new VJavaScriptLexer();
 
 
@@ -124,6 +124,16 @@ public class VEdit extends View {
 	// ------------------
 	// -----Methods------
 	// ------------------
+
+	public void setLexer(VLexer lexer) {
+		if (lexer == null) {
+			_Lexer = null;
+			return;
+		}
+		if (_Lexer != null && _Lexer.getClass() == lexer.getClass()) return;
+		_Lexer = lexer;
+		_Lexer.setText(S);
+	}
 
 	public void loadURL(String url) throws IOException {
 		loadURL(new URL(url));
@@ -230,31 +240,13 @@ public class VEdit extends View {
 		onFontChange();
 	}
 
-	public void setSelectionColor(int color) {
-		_ColorSelection = color;
+	public void setColorScheme(ColorScheme scheme) {
+		this._ColorScheme = scheme;
 		invalidate();
 	}
 
-	public void setSplitLineColor(int color) {
-		_ColorSplitLine = color;
-		invalidate();
-	}
-
-	public void setCursorColor(int color) {
-		_ColorCursor = color;
-		invalidate();
-	}
-
-	public int getSelectionColor() {
-		return _ColorSelection;
-	}
-
-	public int getSplitLineColor() {
-		return _ColorSplitLine;
-	}
-
-	public int getCursorColor() {
-		return _ColorCursor;
+	public ColorScheme getColorScheme() {
+		return _ColorScheme;
 	}
 
 	public void setTABSpaceCount(int count) {
@@ -292,7 +284,8 @@ public class VEdit extends View {
 		if (_Editable && _IMM != null)
 			_IMM.restartInput(this);
 		calculateEnters();
-		_Lexer.setText(s);
+		if (_Lexer != null)
+			_Lexer.setText(s);
 		onLineChange();
 		requestLayout();
 		postInvalidate();
@@ -405,7 +398,8 @@ public class VEdit extends View {
 
 	public int[] deleteChar(int line, int column) {
 		if ((!_Editable) || (line == 1 && column == 0)) return new int[] {line, column};
-		int pos = E[line] + column;
+		final int pos = E[line] + column;
+
 		if (_TextLength > pos)
 			System.arraycopy(S, pos, S, pos - 1, _TextLength - pos);
 		if (column == 0) {
@@ -420,6 +414,10 @@ public class VEdit extends View {
 			column--;
 		}
 		_TextLength--;
+		if (_Lexer != null) {
+			_Lexer.onTextReferenceUpdate(S, _TextLength);
+			_Lexer.onDeleteChars(pos, 1);
+		}
 		postInvalidate();
 		return new int[] {line, column};
 	}
@@ -436,7 +434,8 @@ public class VEdit extends View {
 
 	public int[] insertChar(int line, int column, char c) {
 		if (!_Editable) return new int[] {line, column};
-		int pos = E[line] + column;
+		final int pos = E[line] + column;
+
 		if (S.length <= _TextLength + 1) {
 			char[] ns = new char[S.length + EXPAND_SIZE];
 			System.arraycopy(S, 0, ns, 0, pos);
@@ -465,6 +464,10 @@ public class VEdit extends View {
 			column++;
 		}
 		_TextLength++;
+		if (_Lexer != null) {
+			_Lexer.onTextReferenceUpdate(S, _TextLength);
+			_Lexer.onInsertChars(pos, 1);
+		}
 		postInvalidate();
 		return new int[] {line, column};
 	}
@@ -538,8 +541,8 @@ public class VEdit extends View {
 	public int[] insertChars(int line, int column, char[] cs) {
 		if (!_Editable) return new int[] {line, column};
 		final int tl = cs.length;
+		final int pos = E[line] + column;
 
-		int pos = E[line] + column;
 		int nh = _TextLength + tl;
 		if (nh > S.length) {
 			char[] ns = new char[nh + EXPAND_SIZE];
@@ -587,6 +590,10 @@ public class VEdit extends View {
 			column += tl;
 		else
 			column = pos + tl - E[line];
+		if (_Lexer != null) {
+			_Lexer.onTextReferenceUpdate(S, _TextLength);
+			_Lexer.onInsertChars(pos, cs.length);
+		}
 		postInvalidate();
 		return new int[] {line, column};
 	}
@@ -623,6 +630,10 @@ public class VEdit extends View {
 			column -= count;
 		else
 			column = pos - count - E[line];
+		if (_Lexer != null) {
+			_Lexer.onTextReferenceUpdate(S, _TextLength);
+			_Lexer.onDeleteChars(pos, count);
+		}
 		postInvalidate();
 		return new int[] {line, column};
 	}
@@ -827,6 +838,7 @@ public class VEdit extends View {
 	// 绘制函数
 	@Override
 	protected void onDraw(Canvas canvas) {
+		// Marks
 		long st = System.currentTimeMillis();
 		final boolean showSelecting = isRangeSelecting();
 		final boolean showCursor = (!showSelecting) && _Editable;
@@ -843,7 +855,7 @@ public class VEdit extends View {
 		int tot;
 		float selectionStartX;
 		if (_ShowLineNumber) {
-			ColorPaint.setColor(_ColorSplitLine);
+			ColorPaint.setColor(_ColorScheme.getSplitLineColor());
 			canvas.drawRect(LineNumberWidth, getScrollY(), LineNumberWidth + LINENUM_SPLIT_WIDTH, getScrollY() + getHeight(), ColorPaint);
 		}
 		LineDraw:
@@ -851,7 +863,7 @@ public class VEdit extends View {
 			if (_ShowLineNumber)
 				canvas.drawText(Integer.toString(line), LineNumberWidth, y, LineNumberPaint);
 			if (showCursor && _CursorLine == line) {
-				ColorPaint.setColor(_ColorSelection);
+				ColorPaint.setColor(_ColorScheme.getSelectionColor());
 				canvas.drawRect(xo - _ContentLeftPadding, y - YOffset - _LinePaddingTop, right, y + TextHeight - YOffset + _LinePaddingBottom, ColorPaint);
 			}
 			i = E[line];
@@ -871,7 +883,7 @@ public class VEdit extends View {
 				if (i == _SStart)
 					selectionStartX = x;
 				if (showCursor && i == cursorPos) {
-					ColorPaint.setColor(_ColorCursor);
+					ColorPaint.setColor(_ColorScheme.getCursorColor());
 					ColorPaint.setStrokeWidth(_CursorWidth);
 					canvas.drawLine(x, y - YOffset - _LinePaddingTop, x, y - YOffset + TextHeight + _LinePaddingBottom, ColorPaint);
 				}
@@ -881,16 +893,16 @@ public class VEdit extends View {
 				} else
 					x += getCharWidth(TMP[tot++]);
 				if (_SStart != -1 && i == _SEnd - 1) {
-					ColorPaint.setColor(_ColorSelection);
+					ColorPaint.setColor(_ColorScheme.getSelectionColor());
 					canvas.drawRect(selectionStartX, y - YOffset - _LinePaddingTop, x, y - YOffset + TextHeight + _LinePaddingBottom, ColorPaint);
 				}
 			}
 			if (i > _SStart && i < _SEnd - 1 && showSelecting) {
-				ColorPaint.setColor(_ColorSelection);
+				ColorPaint.setColor(_ColorScheme.getSelectionColor());
 				canvas.drawRect(selectionStartX, y - YOffset - _LinePaddingTop, x, y - YOffset + TextHeight + _LinePaddingBottom, ColorPaint);
 			}
 			if (showCursor && i == cursorPos) {
-				ColorPaint.setColor(_ColorCursor);
+				ColorPaint.setColor(_ColorScheme.getCursorColor());
 				ColorPaint.setStrokeWidth(_CursorWidth);
 				canvas.drawLine(x, y - YOffset - _LinePaddingTop, x, y - YOffset + TextHeight + _LinePaddingBottom, ColorPaint);
 			}
