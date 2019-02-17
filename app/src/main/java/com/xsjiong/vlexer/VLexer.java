@@ -1,5 +1,8 @@
 package com.xsjiong.vlexer;
 
+import android.util.Log;
+import com.xsjiong.vedit.G;
+
 import java.lang.reflect.Field;
 
 public abstract class VLexer {
@@ -67,7 +70,7 @@ public abstract class VLexer {
 				afterDE[i] = DE[part + i + 1] + len;
 			}
 		}
-		DS[0] = part - 1;
+		DS[0] = Math.max(part - 1, 0);
 		short type;
 		while (this.P < en) {
 			type = getNext();
@@ -88,12 +91,14 @@ public abstract class VLexer {
 	}
 
 	public final void onDeleteChars(int pos, int len) {
+		Log.i(G.T, "Delete Chars:" + pos + " " + len);
 		if (len > pos) len = pos;
 		int part2 = findPart(pos);
 		int en = DE[part2] - len;
 		pos -= len;
 		int part1 = findPart(pos);
-		if (part1 != 1) part1--;
+		if (part1 < 1) part1 = 1;
+		else if (part1 != 1) part1--;
 		this.P = DS[part1];
 		int afterLen = DS[0] - part2;
 		short[] afterD = new short[afterLen];
@@ -107,6 +112,7 @@ public abstract class VLexer {
 			}
 		}
 		DS[0] = part1 - 1;
+		int i = 0;
 		short type;
 		while (this.P < en) {
 			type = getNext();
@@ -115,6 +121,7 @@ public abstract class VLexer {
 			D[DS[0]] = type;
 			DS[DS[0]] = ST;
 			DE[DS[0]] = P;
+			if (i < afterLen && afterDS[i++] == type) break;
 		}
 		if (afterLen != 0) {
 			int nl = DS[0] + afterLen + 1;

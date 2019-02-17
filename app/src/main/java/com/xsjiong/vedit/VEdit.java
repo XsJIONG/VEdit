@@ -126,6 +126,13 @@ public class VEdit extends View {
 	// -----Methods------
 	// ------------------
 
+	public void deleteSelecting() {
+		int line = findLine(_SEnd);
+		int[] ret = deleteChars(line, _SEnd - E[line], _SEnd - _SStart);
+		moveCursor(ret[0], ret[1]);
+		finishSelecting();
+	}
+
 	public void setLexer(VLexer lexer) {
 		if (lexer == null) {
 			_Lexer = null;
@@ -302,17 +309,20 @@ public class VEdit extends View {
 
 	public void setSelectionStart(int st) {
 		_SStart = st;
+		onCursorUpdate();
 		invalidate();
 	}
 
 	public void setSelectionEnd(int en) {
 		_SEnd = en;
+		onCursorUpdate();
 		invalidate();
 	}
 
 	public void setSelectionRange(int st, int en) {
 		_SStart = st;
 		_SEnd = en;
+		onCursorUpdate();
 		invalidate();
 	}
 
@@ -395,6 +405,7 @@ public class VEdit extends View {
 		int[] ret = deleteChar(_CursorLine, _CursorColumn);
 		_CursorLine = ret[0];
 		_CursorColumn = ret[1];
+		onCursorUpdate();
 	}
 
 	public int[] deleteChar(int line, int column) {
@@ -431,6 +442,7 @@ public class VEdit extends View {
 		int[] ret = insertChar(_CursorLine, _CursorColumn, c);
 		_CursorLine = ret[0];
 		_CursorColumn = ret[1];
+		onCursorUpdate();
 	}
 
 	public int[] insertChar(int line, int column, char c) {
@@ -537,6 +549,7 @@ public class VEdit extends View {
 		int[] ret = insertChars(_CursorLine, _CursorColumn, cs);
 		_CursorLine = ret[0];
 		_CursorColumn = ret[1];
+		onCursorUpdate();
 	}
 
 	public int[] insertChars(int line, int column, char[] cs) {
@@ -603,6 +616,7 @@ public class VEdit extends View {
 		int[] ret = deleteChars(_CursorLine, _CursorColumn, count);
 		_CursorLine = ret[0];
 		_CursorColumn = ret[1];
+		onCursorUpdate();
 	}
 
 	public int[] deleteChars(int line, int column, int count) {
@@ -614,7 +628,8 @@ public class VEdit extends View {
 			E[2] = 1;
 			_TextLength = 0;
 		}
-		final int pos = E[line] + column;
+		int pos = E[line] + column;
+		if (pos > _TextLength) pos = _TextLength;
 		if (pos < count) count = pos;
 
 		int tot = 0;
@@ -933,14 +948,20 @@ public class VEdit extends View {
 		}
 	}
 
-	@Override
-	public String toString() {
-		return new String(S, 0, _TextLength);
-	}
-
 	// -------------------------
 	// -----Private Methods-----
 	// -------------------------
+
+	private void deleteSurrounding(int beforeLength, int afterLength) {
+		if (isRangeSelecting())
+			deleteSelecting();
+		else {
+			int pos = getCursorPosition() + afterLength;
+			int line = findLine(pos);
+			int[] ret = deleteChars(line, pos - E[line], afterLength + beforeLength);
+			moveCursor(ret[0], ret[1]);
+		}
+	}
 
 	private void calculateEnters() {
 		E[E[0] = 1] = 0;
@@ -963,12 +984,10 @@ public class VEdit extends View {
 		}
 		switch (event.getKeyCode()) {
 			case KeyEvent.KEYCODE_DEL:
-				if (isRangeSelecting()) {
-					int line = findLine(_SEnd);
-					int[] ret = deleteChars(line, _SEnd - E[line], _SEnd - _SStart);
-					moveCursor(ret[0], ret[1]);
-					finishSelecting();
-				} else deleteChar();
+				if (isRangeSelecting())
+					deleteSelecting();
+				else
+					deleteChar();
 				break;
 			case KeyEvent.KEYCODE_ENTER:
 				insertChar('\n');
@@ -1060,13 +1079,17 @@ public class VEdit extends View {
 	}
 
 	private void onCursorUpdate() {
+		if (!isRangeSelecting())
+			makeCursorVisible(_CursorLine, _CursorColumn);
 		if (_IMM != null) {
 			int sst, sen;
 			if (isRangeSelecting()) {
 				sst = _SStart;
 				sen = _SEnd;
 			} else sst = sen = getCursorPosition();
+//			_IMM.updateSelection(this, sst, sen, -1, -1);
 			_IMM.updateSelection(this, sst, sen, -1, -1);
+//			_IMM.updateCursorAnchorInfo(this, new CursorAnchorInfo.Builder().setComposingText());
 //			_IMM.restartInput(this);
 		}
 	}
@@ -1110,6 +1133,7 @@ public class VEdit extends View {
 
 		@Override
 		public CharSequence getTextAfterCursor(int n, int flags) {
+			Log.i(T, "getAfter:" + n);
 			int cursor = Q.isRangeSelecting() ? Q._SStart : Q.getCursorPosition();
 			return new String(Q.S, cursor, Math.min(cursor + n, Q._TextLength) - cursor);
 		}
@@ -1184,10 +1208,7 @@ public class VEdit extends View {
 
 		@Override
 		public boolean deleteSurroundingText(int beforeLength, int afterLength) {
-			int pos = Q.getCursorPosition() + afterLength;
-			int line = Q.findLine(pos);
-			int[] ret = Q.deleteChars(line, pos - Q.E[line], afterLength + beforeLength);
-			Q.moveCursor(ret[0], ret[1]);
+			Q.deleteSurrounding(beforeLength, afterLength);
 			return true;
 		}
 
@@ -1227,6 +1248,7 @@ public class VEdit extends View {
 					break;
 				}
 				case android.R.id.cut:
+					Log.i(T, "cut");
 					if (Q.isRangeSelecting()) {
 						ClipboardManager manager = Q.getClipboardManager();
 						manager.setPrimaryClip(ClipData.newPlainText(null, Q.getSelectedText()));
@@ -1296,4 +1318,98 @@ public class VEdit extends View {
 			return false;
 		}
 	}
+
+	/*private static class VInputConnection extends BaseInputConnection {
+		private VEdit Q;
+
+		public VInputConnection(VEdit parent) {
+			super(parent, true);
+			Q = parent;
+		}
+
+		@Override
+		public boolean setComposingRegion(int start, int end) {
+			return false;
+		}
+
+		@Override
+		public boolean setComposingText(CharSequence text, int newCursorPosition) {
+			return false;
+		}
+
+		@Override
+		public boolean commitText(CharSequence text, int newCursorPosition) {
+			char[] cs = new char[text.length()];
+			for (int i = 0; i < cs.length; i++) cs[i] = text.charAt(i);
+			Q.commitText(cs);
+			return true;
+		}
+
+		@Override
+		public boolean performContextMenuAction(int id) {
+			switch (id) {
+				case android.R.id.copy: {
+					if (Q.isRangeSelecting()) {
+						ClipboardManager manager = Q.getClipboardManager();
+						manager.setPrimaryClip(ClipData.newPlainText(null, Q.getSelectedText()));
+						Q.finishSelecting();
+					}
+					break;
+				}
+				case android.R.id.cut:
+					if (Q.isRangeSelecting()) {
+						ClipboardManager manager = Q.getClipboardManager();
+						manager.setPrimaryClip(ClipData.newPlainText(null, Q.getSelectedText()));
+						int line = Q.findLine(Q._SEnd);
+						Q.deleteChars(line, Q._SEnd - Q.E[line], Q._SEnd - Q._SStart);
+						Q.finishSelecting();
+					}
+					break;
+				case android.R.id.paste:
+					ClipData data = Q.getClipboardManager().getPrimaryClip();
+					if (data != null && data.getItemCount() > 0) {
+						CharSequence s = data.getItemAt(0).coerceToText(Q.getContext());
+						char[] cs = new char[s.length()];
+						for (int i = 0; i < cs.length; i++) cs[i] = s.charAt(i);
+						Q.commitText(cs);
+					}
+					break;
+				case android.R.id.selectAll:
+					Q.setSelectionRange(0, Q._TextLength);
+					break;
+			}
+			return true;
+		}
+
+		@Override
+		public boolean setSelection(int start, int end) {
+			if (start == end) {
+				Q.finishSelecting();
+				Q.moveCursor(start);
+				return true;
+			}
+			Q._SStart = start;
+			Q._SEnd = end;
+			Q.postInvalidate();
+			return true;
+		}
+
+		@Override
+		public boolean deleteSurroundingText(int beforeLength, int afterLength) {
+			Q.deleteSurrounding(beforeLength, afterLength);
+			return true;
+		}
+
+		@Override
+		public boolean deleteSurroundingTextInCodePoints(int beforeLength, int afterLength) {
+			deleteSurroundingText(beforeLength, afterLength);
+			return true;
+		}
+
+		@Override
+		public boolean sendKeyEvent(KeyEvent event) {
+			Q.processEvent(event);
+			return true;
+		}
+	}*/
 }

@@ -1,3 +1,4 @@
+/*
 #include <jni.h>
 #include <string>
 #define JCHAR_MAX 65535
@@ -131,5 +132,12 @@ JNIEXPORT jint JNICALL JNI_OnLoad(JavaVM* vm, void* reserved){
 	_measureText = env->GetMethodID(clz, "measureText", "([CII)F");
 	clz = env->FindClass("android/graphics/Canvas");
 	_drawText = env->GetMethodID(clz, "drawText", "([CIIFFLandroid/graphics/Paint;)V");
+	return JNI_VERSION_1_6;
+}*/
+#include <jni.h>
+#include <unistd.h>
+
+JNIEXPORT jint JNICALL JNI_OnLoad(JavaVM *vm, void *reserved) {
+	sleep(3);
 	return JNI_VERSION_1_6;
 }

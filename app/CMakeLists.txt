@@ -5,6 +5,4 @@
 
 cmake_minimum_required(VERSION 3.4.1)
 
-# add_library(vedit
-#             SHARED
-#             src/main/cpp/vedit.cpp )
+add_library(vedit SHARED src/main/cpp/vedit.cpp )
