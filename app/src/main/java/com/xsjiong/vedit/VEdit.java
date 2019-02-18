@@ -330,6 +330,7 @@ public class VEdit extends View {
 		if (pos > _TextLength) pos = _TextLength;
 		_CursorLine = findLine(pos);
 		_CursorColumn = pos - E[_CursorLine];
+		onCursorUpdate();
 		invalidate();
 	}
 
@@ -341,6 +342,7 @@ public class VEdit extends View {
 			column = E[line + 1] - E[line] - 1;
 		_CursorLine = line;
 		_CursorColumn = column;
+		onCursorUpdate();
 		invalidate();
 	}
 
@@ -670,6 +672,7 @@ public class VEdit extends View {
 		count = Math.min(E[_CursorLine] + _CursorColumn + count, _TextLength);
 		_CursorLine = findLine(count);
 		_CursorColumn = count - E[_CursorLine];
+		onCursorUpdate();
 	}
 
 	public float getCharWidth(char c) {
@@ -1133,7 +1136,6 @@ public class VEdit extends View {
 
 		@Override
 		public CharSequence getTextAfterCursor(int n, int flags) {
-			Log.i(T, "getAfter:" + n);
 			int cursor = Q.isRangeSelecting() ? Q._SStart : Q.getCursorPosition();
 			return new String(Q.S, cursor, Math.min(cursor + n, Q._TextLength) - cursor);
 		}
@@ -1248,12 +1250,12 @@ public class VEdit extends View {
 					break;
 				}
 				case android.R.id.cut:
-					Log.i(T, "cut");
 					if (Q.isRangeSelecting()) {
 						ClipboardManager manager = Q.getClipboardManager();
 						manager.setPrimaryClip(ClipData.newPlainText(null, Q.getSelectedText()));
 						int line = Q.findLine(Q._SEnd);
-						Q.deleteChars(line, Q._SEnd - Q.E[line], Q._SEnd - Q._SStart);
+						int[] ret = Q.deleteChars(line, Q._SEnd - Q.E[line], Q._SEnd - Q._SStart);
+						Q.moveCursor(ret[0], ret[1]);
 						Q.finishSelecting();
 					}
 					break;
