@@ -619,6 +619,9 @@ public class VEdit extends View {
 		onCursorUpdate();
 	}
 
+	exit
+
+
 	public int[] deleteChars(int line, int column, int count) {
 		if ((!_Editable) || count == 0) return new int[] {line, column};
 		if (count > _TextLength) {
