@@ -23,7 +23,7 @@ public class LoadingDialog extends FullScreenDialog {
 	private void Initialize() {
 		Root = new LinearLayout(getContext());
 		Root.setGravity(Gravity.CENTER);
-		Root.setBackground(null);
+		Root.setBackgroundDrawable(null);
 		Root.setOrientation(LinearLayout.VERTICAL);
 		Content = new SmoothProgressBar(getContext());
 		Content.setSmoothProgressDrawableColors(G.REFRESH_COLORS);

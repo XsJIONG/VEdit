@@ -1045,7 +1045,7 @@ public class VEdit extends View {
 			_IMM.viewClicked(this);
 			_IMM.showSoftInput(this, 0);
 			onCursorUpdate();
-			//_IMM.restartInput(this);
+//			_IMM.restartInput(this);
 		}
 		postInvalidate();
 	}
