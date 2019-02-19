@@ -83,11 +83,12 @@ public abstract class VLexer {
 			if (i != afterLen && P == afterDE[i] && type == afterD[i]) break;
 		}
 		if (afterLen != 0) {
-			int nl = DS[0] + afterLen - i - 1;
+			int cplen = afterLen - i;
+			int nl = DS[0] + cplen - 1;
 			while (D.length < nl) expandDArray();
-			System.arraycopy(afterD, i, D, DS[0], afterLen - i);
-			System.arraycopy(afterDS, i, DS, DS[0], afterLen - i);
-			System.arraycopy(afterDE, i, DE, DS[0], afterLen - i);
+			System.arraycopy(afterD, i, D, DS[0], cplen);
+			System.arraycopy(afterDS, i, DS, DS[0], cplen);
+			System.arraycopy(afterDE, i, DE, DS[0], cplen);
 			DS[0] = nl;
 		}
 	}
@@ -127,11 +128,12 @@ public abstract class VLexer {
 			if (i != afterLen && P == afterDE[i] && type == afterD[i]) break;
 		}
 		if (afterLen != 0) {
-			int nl = DS[0] + afterLen - i - 1;
+			int cplen = afterLen - i;
+			int nl = DS[0] + cplen - 1;
 			while (D.length < nl) expandDArray();
-			System.arraycopy(afterD, i, D, DS[0], afterLen - i);
-			System.arraycopy(afterDS, i, DS, DS[0], afterLen - i);
-			System.arraycopy(afterDE, i, DE, DS[0], afterLen - i);
+			System.arraycopy(afterD, i, D, DS[0], cplen);
+			System.arraycopy(afterDS, i, DS, DS[0], cplen);
+			System.arraycopy(afterDE, i, DE, DS[0], cplen);
 			DS[0] = nl;
 		}
 	}
