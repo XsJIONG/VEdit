@@ -227,11 +227,6 @@ public class VEdit extends View {
 		return new String(getLineChars(line));
 	}
 
-	public void setTextColor(int color) {
-		ContentPaint.setColor(color);
-		invalidate();
-	}
-
 	public void setTextAntiAlias(boolean flag) {
 		ContentPaint.setAntiAlias(flag);
 		invalidate();
@@ -292,8 +287,7 @@ public class VEdit extends View {
 		if (_Editable && _IMM != null)
 			_IMM.restartInput(this);
 		calculateEnters();
-		if (_Lexer != null)
-			_Lexer.setText(s);
+		_Lexer.setText(s);
 		onLineChange();
 		requestLayout();
 		postInvalidate();
@@ -428,10 +422,8 @@ public class VEdit extends View {
 			column--;
 		}
 		_TextLength--;
-		if (_Lexer != null) {
-			_Lexer.onTextReferenceUpdate(S, _TextLength);
-			_Lexer.onDeleteChars(pos, 1);
-		}
+		_Lexer.onTextReferenceUpdate(S, _TextLength);
+		_Lexer.onDeleteChars(pos, 1);
 		postInvalidate();
 		return new int[] {line, column};
 	}
@@ -479,10 +471,8 @@ public class VEdit extends View {
 			column++;
 		}
 		_TextLength++;
-		if (_Lexer != null) {
-			_Lexer.onTextReferenceUpdate(S, _TextLength);
-			_Lexer.onInsertChars(pos, 1);
-		}
+		_Lexer.onTextReferenceUpdate(S, _TextLength);
+		_Lexer.onInsertChars(pos, 1);
 		postInvalidate();
 		return new int[] {line, column};
 	}
@@ -606,10 +596,8 @@ public class VEdit extends View {
 			column += tl;
 		else
 			column = pos + tl - E[line];
-		if (_Lexer != null) {
-			_Lexer.onTextReferenceUpdate(S, _TextLength);
-			_Lexer.onInsertChars(pos, cs.length);
-		}
+		_Lexer.onTextReferenceUpdate(S, _TextLength);
+		_Lexer.onInsertChars(pos, cs.length);
 		postInvalidate();
 		return new int[] {line, column};
 	}
@@ -648,10 +636,8 @@ public class VEdit extends View {
 			column -= count;
 		else
 			column = pos - count - E[line];
-		if (_Lexer != null) {
-			_Lexer.onTextReferenceUpdate(S, _TextLength);
-			_Lexer.onDeleteChars(pos, count);
-		}
+		_Lexer.onTextReferenceUpdate(S, _TextLength);
+		_Lexer.onDeleteChars(pos, count);
 		postInvalidate();
 		return new int[] {line, column};
 	}
@@ -877,8 +863,8 @@ public class VEdit extends View {
 			ColorPaint.setColor(_Scheme.getSplitLineColor());
 			canvas.drawRect(LineNumberWidth, getScrollY(), LineNumberWidth + LINENUM_SPLIT_WIDTH, getScrollY() + getHeight(), ColorPaint);
 		}
-		int parseTot = 1;
-		int parseTarget = 0;
+		int parseTot = _Lexer.findPart(E[line]);
+		int parseTarget = _Lexer.getPartStart(parseTot);
 		LineDraw:
 		for (; line < E[0]; line++) {
 			if (_ShowLineNumber)
@@ -898,8 +884,8 @@ public class VEdit extends View {
 					}
 					XStart = wtmp;
 				}
-			if (_Lexer != null) {
-				while (i >= parseTarget && parseTot < _Lexer.getPartCount())
+			if (parseTot <= _Lexer.getPartCount()) {
+				while (i >= parseTarget && parseTot <= _Lexer.getPartCount())
 					parseTarget = _Lexer.getPartStart(++parseTot);
 				ContentPaint.setColor(_Scheme.getTypeColor(_Lexer.getPartType(parseTot - 1)));
 			}
@@ -911,7 +897,8 @@ public class VEdit extends View {
 					XStart = x;
 					tot = 0;
 					ContentPaint.setColor(_Scheme.getTypeColor(_Lexer.getPartType(parseTot)));
-					if (parseTot < _Lexer.getPartCount()) parseTarget = _Lexer.getPartStart(++parseTot);
+					++parseTot;
+					if (parseTot <= _Lexer.getPartCount()) parseTarget = _Lexer.getPartStart(parseTot);
 				}
 				if (i == _SStart)
 					selectionStartX = x;

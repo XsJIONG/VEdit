@@ -27,7 +27,7 @@ public class VJavaScriptLexer extends VJavaLexer {
 			// JS的世界里没有char
 			boolean z = false;
 			do {
-				if (P == S.length) return TYPE_STRING;
+				if (P == L) return TYPE_STRING;
 				if (S[P] == '\\')
 					z = !z;
 				else if (S[P] == '\'' && !z) {

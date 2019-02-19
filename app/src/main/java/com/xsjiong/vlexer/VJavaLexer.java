@@ -41,7 +41,7 @@ public class VJavaLexer extends VLexer {
 			case '&':
 			case '+':
 			case '-': {
-				if (P == S.length) return TYPE_OPERATOR;
+				if (P == L) return TYPE_OPERATOR;
 				if (S[P] == S[P - 1] || S[P] == '=') {
 					++P;
 					return TYPE_OPERATOR;
@@ -52,7 +52,7 @@ public class VJavaLexer extends VLexer {
 			case '<':
 			case '>':
 			case '!': {
-				if (P == S.length) return TYPE_OPERATOR;
+				if (P == L) return TYPE_OPERATOR;
 				if (S[P] == '=')
 					++P;
 				return TYPE_OPERATOR;
@@ -65,7 +65,7 @@ public class VJavaLexer extends VLexer {
 			case '^':
 			case '%':
 			case '*': {
-				if (P == S.length) return TYPE_OPERATOR;
+				if (P == L) return TYPE_OPERATOR;
 				if (S[P] == '=') {
 					++P;
 					return TYPE_OPERATOR;
@@ -73,12 +73,12 @@ public class VJavaLexer extends VLexer {
 				return TYPE_OPERATOR;
 			}
 			case '/': {
-				if (P == S.length) return TYPE_OPERATOR;
+				if (P == L) return TYPE_OPERATOR;
 				switch (S[P]) {
 					case '*': {
 						boolean star = false;
 						do {
-							if (++P == S.length) return TYPE_COMMENT;
+							if (++P == L) return TYPE_COMMENT;
 							if (S[P] == '*') star = true;
 							else {
 								if (S[P] == '/' && star) {
@@ -92,7 +92,7 @@ public class VJavaLexer extends VLexer {
 					case '/': {
 						do {
 							++P;
-						} while (P != S.length && S[P] != '\n');
+						} while (P != L && S[P] != '\n');
 						return TYPE_COMMENT;
 					}
 					case '=':
@@ -105,7 +105,7 @@ public class VJavaLexer extends VLexer {
 			case '"': {
 				boolean z = false;
 				do {
-					if (P == S.length) return TYPE_STRING;
+					if (P == L) return TYPE_STRING;
 					if (S[P] == '\\')
 						z = !z;
 					else if (S[P] == '"' && !z) {
@@ -119,7 +119,7 @@ public class VJavaLexer extends VLexer {
 				// 尽管单引号里面只允许有一个字符，但考虑到转义（我懒得写判断了）和用户异常遍及，我还是把它当作里面可以放n个字符吧
 				boolean z = false;
 				do {
-					if (P == S.length) return TYPE_CHAR;
+					if (P == L) return TYPE_CHAR;
 					if (S[P] == '\\')
 						z = !z;
 					else if (S[P] == '\'' && !z) {
@@ -130,7 +130,7 @@ public class VJavaLexer extends VLexer {
 				} while (true);
 			}
 			case '=': {
-				if (P == S.length) return TYPE_ASSIGNMENT;
+				if (P == L) return TYPE_ASSIGNMENT;
 				if (S[P] == '=') {
 					++P;
 					return TYPE_OPERATOR;

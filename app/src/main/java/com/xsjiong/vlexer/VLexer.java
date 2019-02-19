@@ -53,8 +53,9 @@ public abstract class VLexer {
 	public final void onInsertChars(int pos, int len) {
 		if (len == 0) return;
 		int part = findPart(pos);
-		if (part != 1 && DE[part - 1] == DS[part]) part--;
-		this.P = DS[part];
+		if (pos == DS[part]) part--;
+		if (part == 0) part = 1;
+		this.P = Math.min(DS[part], pos);
 //		int en = DE[part] + len;
 		int afterLen = DS[0] - part;
 		short[] afterD = new short[afterLen];
@@ -78,9 +79,9 @@ public abstract class VLexer {
 			D[DS[0]] = type;
 			DS[DS[0]] = ST;
 			DE[DS[0]] = P;
+			if (P == L) return;
 			while (i != afterLen && P > afterDE[i]) i++;
-			if (P == L) break;
-			if (i != afterLen && P == afterDE[i] && type == afterD[i]) break;
+			if (i != afterLen && ST == afterDS[i] && P == afterDE[i] && type == afterD[i]) break;
 		}
 		if (afterLen != 0) {
 			int cplen = afterLen - i;
@@ -99,8 +100,9 @@ public abstract class VLexer {
 //		int en = DE[part2] - len;
 		pos -= len;
 		int part1 = findPart(pos);
-		if (part1 != 1 && DE[part1 - 1] == DS[part1]) part1--;
-		this.P = DS[part1];
+		if (pos == DS[part1]) part1--;
+		if (part1 == 0) part1 = 1;
+		this.P = Math.min(DS[part1], pos);
 		int afterLen = DS[0] - part2;
 		short[] afterD = new short[afterLen];
 		int[] afterDS = new int[afterLen];
@@ -123,9 +125,9 @@ public abstract class VLexer {
 			D[DS[0]] = type;
 			DS[DS[0]] = ST;
 			DE[DS[0]] = P;
+			if (P == L) return;
 			while (i != afterLen && P > afterDE[i]) i++;
-			if (P == L) break;
-			if (i != afterLen && P == afterDE[i] && type == afterD[i]) break;
+			if (i != afterLen && ST == afterDS[i] && P == afterDE[i] && type == afterD[i]) break;
 		}
 		if (afterLen != 0) {
 			int cplen = afterLen - i;
