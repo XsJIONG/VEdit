@@ -3,10 +3,7 @@ package com.xsjiong.vedit;
 import android.content.ClipData;
 import android.content.ClipboardManager;
 import android.content.Context;
-import android.graphics.Canvas;
-import android.graphics.Color;
-import android.graphics.Paint;
-import android.graphics.Typeface;
+import android.graphics.*;
 import android.os.Bundle;
 import android.os.Handler;
 import android.text.InputType;
@@ -20,7 +17,6 @@ import android.widget.OverScroller;
 import com.xsjiong.vedit.scheme.VEditScheme;
 import com.xsjiong.vedit.scheme.VEditSchemeLight;
 import com.xsjiong.vlexer.VJavaLexer;
-import com.xsjiong.vlexer.VJavaScriptLexer;
 import com.xsjiong.vlexer.VLexer;
 
 import java.io.*;
@@ -79,6 +75,10 @@ public class VEdit extends View {
 	private int _ComposingStart = -1;
 	private VEditScheme _Scheme = new VEditSchemeLight();
 	private VLexer _Lexer = new VJavaLexer();
+	private GlassCursor CURSOR = new GlassCursor(this);
+	private float _CursorHorizonOffset;
+	private float _SStartHorizonOffset, _SEndHorizonOffset;
+	private int _SStartLine, _SEndLine;
 
 
 	// -----------------------
@@ -245,6 +245,7 @@ public class VEdit extends View {
 
 	public void setColorScheme(VEditScheme scheme) {
 		this._Scheme = scheme;
+		CURSOR.setHeight(TextHeight);
 		invalidate();
 	}
 
@@ -303,20 +304,20 @@ public class VEdit extends View {
 
 	public void setSelectionStart(int st) {
 		_SStart = st;
-		onCursorUpdate();
+		onSelectionUpdate();
 		invalidate();
 	}
 
 	public void setSelectionEnd(int en) {
 		_SEnd = en;
-		onCursorUpdate();
+		onSelectionUpdate();
 		invalidate();
 	}
 
 	public void setSelectionRange(int st, int en) {
 		_SStart = st;
 		_SEnd = en;
-		onCursorUpdate();
+		onSelectionUpdate();
 		invalidate();
 	}
 
@@ -324,7 +325,7 @@ public class VEdit extends View {
 		if (pos > _TextLength) pos = _TextLength;
 		_CursorLine = findLine(pos);
 		_CursorColumn = pos - E[_CursorLine];
-		onCursorUpdate();
+		onSelectionUpdate();
 		invalidate();
 	}
 
@@ -336,7 +337,7 @@ public class VEdit extends View {
 			column = E[line + 1] - E[line] - 1;
 		_CursorLine = line;
 		_CursorColumn = column;
-		onCursorUpdate();
+		onSelectionUpdate();
 		invalidate();
 	}
 
@@ -401,7 +402,7 @@ public class VEdit extends View {
 		int[] ret = deleteChar(_CursorLine, _CursorColumn);
 		_CursorLine = ret[0];
 		_CursorColumn = ret[1];
-		onCursorUpdate();
+		onSelectionUpdate();
 	}
 
 	public int[] deleteChar(int line, int column) {
@@ -436,7 +437,7 @@ public class VEdit extends View {
 		int[] ret = insertChar(_CursorLine, _CursorColumn, c);
 		_CursorLine = ret[0];
 		_CursorColumn = ret[1];
-		onCursorUpdate();
+		onSelectionUpdate();
 	}
 
 	public int[] insertChar(int line, int column, char c) {
@@ -541,7 +542,7 @@ public class VEdit extends View {
 		int[] ret = insertChars(_CursorLine, _CursorColumn, cs);
 		_CursorLine = ret[0];
 		_CursorColumn = ret[1];
-		onCursorUpdate();
+		onSelectionUpdate();
 	}
 
 	public int[] insertChars(int line, int column, char[] cs) {
@@ -606,7 +607,7 @@ public class VEdit extends View {
 		int[] ret = deleteChars(_CursorLine, _CursorColumn, count);
 		_CursorLine = ret[0];
 		_CursorColumn = ret[1];
-		onCursorUpdate();
+		onSelectionUpdate();
 	}
 
 	public int[] deleteChars(int line, int column, int count) {
@@ -658,7 +659,7 @@ public class VEdit extends View {
 		count = Math.min(E[_CursorLine] + _CursorColumn + count, _TextLength);
 		_CursorLine = findLine(count);
 		_CursorColumn = count - E[_CursorLine];
-		onCursorUpdate();
+		onSelectionUpdate();
 	}
 
 	public float getCharWidth(char c) {
@@ -851,20 +852,19 @@ public class VEdit extends View {
 		final float bottom = getScrollY() + getHeight() + YOffset;
 		final int right = getScrollX() + getWidth();
 		final float xo = (_ShowLineNumber ? LineNumberWidth + LINENUM_SPLIT_WIDTH : 0) + _ContentLeftPadding;
-		final int cursorPos = getCursorPosition();
 
 		int line = Math.max((int) (getScrollY() / nh) + 1, 1);
 		float y = (line - 1) * nh + YOffset + _LinePaddingTop;
 		float XStart, wtmp, x;
 		int i, en;
 		int tot;
-		float selectionStartX;
 		if (_ShowLineNumber) {
 			ColorPaint.setColor(_Scheme.getSplitLineColor());
 			canvas.drawRect(LineNumberWidth, getScrollY(), LineNumberWidth + LINENUM_SPLIT_WIDTH, getScrollY() + getHeight(), ColorPaint);
 		}
 		int parseTot = _Lexer.findPart(E[line]);
 		int parseTarget = _Lexer.getPartStart(parseTot);
+		float SStartLineEnd = -1;
 		LineDraw:
 		for (; line < E[0]; line++) {
 			if (_ShowLineNumber)
@@ -889,7 +889,6 @@ public class VEdit extends View {
 					parseTarget = _Lexer.getPartStart(++parseTot);
 				ContentPaint.setColor(_Scheme.getTypeColor(_Lexer.getPartType(parseTot - 1)));
 			}
-			selectionStartX = (i >= _SStart && _SStart != -1) ? XStart : -1;
 			tot = 0;
 			for (x = XStart; i < en && x <= right; i++) {
 				if (i == parseTarget) {
@@ -900,13 +899,6 @@ public class VEdit extends View {
 					++parseTot;
 					if (parseTot <= _Lexer.getPartCount()) parseTarget = _Lexer.getPartStart(parseTot);
 				}
-				if (i == _SStart)
-					selectionStartX = x;
-				if (showCursor && i == cursorPos) {
-					ColorPaint.setColor(_Scheme.getCursorColor());
-					ColorPaint.setStrokeWidth(_CursorWidth);
-					canvas.drawLine(x, y - YOffset - _LinePaddingTop, x, y - YOffset + TextHeight + _LinePaddingBottom, ColorPaint);
-				}
 				if ((TMP[tot] = S[i]) == '\t') {
 					canvas.drawText(TMP, 0, tot, XStart, y, ContentPaint);
 					XStart = x;
@@ -915,22 +907,37 @@ public class VEdit extends View {
 					x += _CharWidths[CHAR_TAB];
 				} else
 					x += getCharWidth(TMP[tot++]);
-				if (_SStart != -1 && i == _SEnd - 1) {
-					ColorPaint.setColor(_Scheme.getSelectionColor());
-					canvas.drawRect(selectionStartX, y - YOffset - _LinePaddingTop, x, y - YOffset + TextHeight + _LinePaddingBottom, ColorPaint);
-				}
 			}
 			canvas.drawText(TMP, 0, tot, XStart, y, ContentPaint);
-			if (i > _SStart && i < _SEnd - 1 && showSelecting) {
-				ColorPaint.setColor(_Scheme.getSelectionColor());
-				canvas.drawRect(selectionStartX, y - YOffset - _LinePaddingTop, x, y - YOffset + TextHeight + _LinePaddingBottom, ColorPaint);
-			}
-			if (showCursor && i == cursorPos) {
-				ColorPaint.setColor(_Scheme.getCursorColor());
-				ColorPaint.setStrokeWidth(_CursorWidth);
-				canvas.drawLine(x, y - YOffset - _LinePaddingTop, x, y - YOffset + TextHeight + _LinePaddingBottom, ColorPaint);
+			if (showSelecting) {
+				if (line == _SStartLine) SStartLineEnd = x;
+				else if (line > _SStartLine && line < _SEndLine) {
+					ColorPaint.setColor(_Scheme.getSelectionColor());
+					canvas.drawRect(xo, y - YOffset - _LinePaddingTop, x, y - YOffset + TextHeight + _LinePaddingBottom, ColorPaint);
+				}
 			}
 			if ((y += nh) >= bottom) break;
+		}
+		if (showCursor) {
+			ColorPaint.setColor(_Scheme.getCursorLineColor());
+			ColorPaint.setStrokeWidth(_CursorWidth);
+			float sty = nh * _CursorLine;
+			canvas.drawLine(xo + _CursorHorizonOffset, sty - nh, xo + _CursorHorizonOffset, sty, ColorPaint);
+			CURSOR.draw(canvas, xo + _CursorHorizonOffset, sty, (byte) 0);
+		} else if (showSelecting) {
+			float sty = nh * _SStartLine;
+			if (_SStartLine == _SEndLine) {
+				ColorPaint.setColor(_Scheme.getSelectionColor());
+				canvas.drawRect(xo + _SStartHorizonOffset, sty - nh, xo + _SEndHorizonOffset, sty, ColorPaint);
+			} else {
+				float eny = nh * _SEndLine;
+				ColorPaint.setColor(_Scheme.getSelectionColor());
+				if (SStartLineEnd != -1)
+					canvas.drawRect(xo + _SStartHorizonOffset, sty - nh, xo + SStartLineEnd, sty, ColorPaint);
+				canvas.drawRect(xo, eny - nh, xo + _SEndHorizonOffset, eny, ColorPaint);
+			}
+			CURSOR.draw(canvas, xo + _SStartHorizonOffset, sty, (byte) 1);
+			CURSOR.draw(canvas, xo + _SEndHorizonOffset, nh * _SEndLine, (byte) 2);
 		}
 		if (G.LOG_TIME) {
 			st = System.currentTimeMillis() - st;
@@ -1034,7 +1041,7 @@ public class VEdit extends View {
 		if (_IMM != null) {
 			_IMM.viewClicked(this);
 			_IMM.showSoftInput(this, 0);
-			onCursorUpdate();
+			onSelectionUpdate();
 //			_IMM.restartInput(this);
 		}
 		postInvalidate();
@@ -1043,6 +1050,7 @@ public class VEdit extends View {
 	private void onFontChange() {
 		YOffset = -ContentPaint.ascent();
 		TextHeight = ContentPaint.descent() + YOffset;
+		CURSOR.setHeight(TextHeight);
 		clearCharWidthCache();
 		onLineChange();
 		requestLayout();
@@ -1068,18 +1076,37 @@ public class VEdit extends View {
 		return (ClipboardManager) getContext().getSystemService(Context.CLIPBOARD_SERVICE);
 	}
 
-	private void onCursorUpdate() {
-		if (!isRangeSelecting())
+	private void onSelectionUpdate() {
+		if (!isRangeSelecting()) {
 			makeCursorVisible(_CursorLine, _CursorColumn);
+			_CursorHorizonOffset = 0;
+			int off = E[_CursorLine];
+			int tar = off + _CursorColumn;
+			for (; off < tar; off++) _CursorHorizonOffset += getCharWidth(S[off]);
+		} else {
+			_SStartHorizonOffset = 0;
+			int off = E[_SStartLine = findLine(_SStart)];
+			for (; off < _SStart; off++) _SStartHorizonOffset += getCharWidth(S[off]);
+			_SEndHorizonOffset = 0;
+			off = E[_SEndLine = findLine(_SEnd)];
+			for (; off < _SEnd; off++) _SEndHorizonOffset += getCharWidth(S[off]);
+		}
 		if (_IMM != null) {
 			int sst, sen;
+			CursorAnchorInfo.Builder builder = new CursorAnchorInfo.Builder().setMatrix(null);
 			if (isRangeSelecting()) {
 				sst = _SStart;
 				sen = _SEnd;
-			} else sst = sen = getCursorPosition();
-//			_IMM.updateSelection(this, sst, sen, -1, -1);
+			} else {
+				sst = sen = getCursorPosition();
+				float x = 0;
+				for (int i = E[_CursorLine]; i < sst; i++) x += getCharWidth(S[i]);
+				float top = TextHeight * (_CursorLine - 1);
+				builder.setInsertionMarkerLocation(x, top, top + YOffset, top + TextHeight, CursorAnchorInfo.FLAG_HAS_VISIBLE_REGION);
+			}
+			builder.setSelectionRange(sst, sen);
+			_IMM.updateCursorAnchorInfo(this, builder.build());
 			_IMM.updateSelection(this, sst, sen, -1, -1);
-//			_IMM.updateCursorAnchorInfo(this, new CursorAnchorInfo.Builder().setComposingText());
 //			_IMM.restartInput(this);
 		}
 	}
@@ -1305,6 +1332,85 @@ public class VEdit extends View {
 		@Override
 		public boolean commitContent(InputContentInfo inputContentInfo, int flags, Bundle opts) {
 			return false;
+		}
+	}
+
+	private static class GlassCursor {
+		private float h, radius;
+		private Path path = new Path();
+		private Paint mp = new Paint();
+		private VEdit parent;
+		private Bitmap c0, c1, c2;
+
+		public GlassCursor(VEdit parent) {
+			this.parent = parent;
+			mp.setStyle(Paint.Style.FILL);
+			mp.setAntiAlias(true);
+		}
+
+		public void setHeight(float height) {
+			h = height * 1.5f;
+			radius = h * 0.4f;
+			float yy = h - radius;
+			float tmp = (float) Math.sqrt(yy * yy - radius * radius);
+			float xx = tmp / yy * radius;
+			yy = tmp / yy * tmp;
+			float gradius = radius * 0.7f;
+			Path path = new Path();
+			path.moveTo(0, 0);
+			path.lineTo(xx, yy);
+			path.lineTo(-xx, yy);
+			path.close();
+			int ddd = (int) Math.ceil(radius * 2);
+			c0 = Bitmap.createBitmap(ddd, (int) (h + 0.5), Bitmap.Config.ARGB_8888);
+			c1 = Bitmap.createBitmap(ddd, ddd, Bitmap.Config.ARGB_8888);
+			c2 = Bitmap.createBitmap(ddd, ddd, Bitmap.Config.ARGB_8888);
+			Canvas canvas = new Canvas(c0);
+			canvas.translate(radius, 0);
+			mp.setColor(parent._Scheme.getCursorColor());
+			canvas.drawPath(path, mp);
+			canvas.drawCircle(0, h - radius, radius, mp);
+			mp.setXfermode(new PorterDuffXfermode(PorterDuff.Mode.CLEAR));
+			canvas.drawCircle(0, h - radius, gradius, mp);
+			mp.setXfermode(null);
+			mp.setColor(parent._Scheme.getCursorGlassColor());
+			canvas.drawCircle(0, h - radius, gradius, mp);
+
+			canvas = new Canvas(c1);
+			mp.setColor(parent._Scheme.getCursorColor());
+			canvas.drawCircle(radius, radius, radius, mp);
+			canvas.drawRect(radius, 0, radius * 2, radius, mp);
+			mp.setXfermode(new PorterDuffXfermode(PorterDuff.Mode.CLEAR));
+			canvas.drawCircle(radius, radius, gradius, mp);
+			mp.setXfermode(null);
+			mp.setColor(parent._Scheme.getCursorGlassColor());
+			canvas.drawCircle(radius, radius, gradius, mp);
+
+			canvas = new Canvas(c2);
+			mp.setColor(parent._Scheme.getCursorColor());
+			canvas.drawCircle(radius, radius, radius, mp);
+			canvas.drawRect(0, 0, radius, radius, mp);
+			mp.setXfermode(new PorterDuffXfermode(PorterDuff.Mode.CLEAR));
+			canvas.drawCircle(radius, radius, gradius, mp);
+			mp.setXfermode(null);
+			mp.setColor(parent._Scheme.getCursorGlassColor());
+			canvas.drawCircle(radius, radius, gradius, mp);
+		}
+
+		public void draw(Canvas canvas, float x, float y, byte type) {
+			canvas.translate(x, y);
+			switch (type) {
+				case 0:
+					canvas.drawBitmap(c0, -radius, 0, null);
+					break;
+				case 1:
+					canvas.drawBitmap(c1, -radius * 2, 0, null);
+					break;
+				case 2:
+					canvas.drawBitmap(c2, 0, 0, null);
+					break;
+			}
+			canvas.translate(-x, -y);
 		}
 	}
 

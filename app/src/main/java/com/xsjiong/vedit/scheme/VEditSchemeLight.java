@@ -6,7 +6,9 @@ public class VEditSchemeLight extends VEditScheme {
 	public VEditSchemeLight() {
 		setSplitLineColor(0xFF2196F3);
 		setSelectionColor(0x552196F3);
-		setCursorColor(0xFFFF5722);
+		setCursorLineColor(0xFFFF5722);
+		setCursorColor(0xFF2196F3);
+		setCursorGlassColor(0x442196F3);
 		C[VLexer.TYPE_IDENTIFIER] = 0xFF757575;
 		C[VLexer.TYPE_KEYWORD] = 0xFF3949AB;
 		C[VLexer.TYPE_NUMBER] = 0xFFF44336;

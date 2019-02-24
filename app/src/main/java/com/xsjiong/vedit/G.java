@@ -214,7 +214,7 @@ public interface G {
 			"\t\tinvalidate();\n" +
 			"\t}\n" +
 			"\n" +
-			"\tpublic void setCursorColor(int color) {\n" +
+			"\tpublic void setCursorLineColor(int color) {\n" +
 			"\t\t_ColorCursor = color;\n" +
 			"\t\tinvalidate();\n" +
 			"\t}\n" +
@@ -227,7 +227,7 @@ public interface G {
 			"\t\treturn _ColorSplitLine;\n" +
 			"\t}\n" +
 			"\n" +
-			"\tpublic int getCursorColor() {\n" +
+			"\tpublic int getCursorLineColor() {\n" +
 			"\t\treturn _ColorCursor;\n" +
 			"\t}\n" +
 			"\n" +
