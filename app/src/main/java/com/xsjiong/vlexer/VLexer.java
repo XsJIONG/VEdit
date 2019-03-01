@@ -270,7 +270,7 @@ public abstract class VLexer {
 					continue;
 				}
 			}
-			while (Character.isDigit(S[P]) || S[P] == '.' || S[P] == 'e' || (hex && Character.isLetter(S[P])) || ((S[P] == '-' || S[P] == '+') && S[P - 1] == 'e'));
+			while (Character.isDigit(S[P]) || S[P] == '.' || (S[P] == 'e' && P != ST && S[P - 1] != '.') || (hex && Character.isLetter(S[P])) || ((S[P] == '-' || S[P] == '+') && S[P - 1] == 'e'));
 			if (P != L && P == ST + 1 && S[ST] == '.') return TYPE_PERIOD;
 			return TYPE_NUMBER;
 		}
