@@ -38,6 +38,7 @@ public class VEdit extends View {
 	public static final int EMPTY_CHAR_WIDTH = 10;
 	public static final int SCROLL_TO_CURSOR_EXTRA = 20;
 	public static final short CHAR_SPACE = 32, CHAR_TAB = 9;
+	public static final byte CURSOR_NONE = -1, CURSOR_NORMAL = 0, CURSOR_LEFT = 1, CURSOR_RIGHT = 2;
 
 
 	// -----------------
@@ -79,6 +80,8 @@ public class VEdit extends View {
 	private float _CursorHorizonOffset;
 	private float _SStartHorizonOffset, _SEndHorizonOffset;
 	private int _SStartLine, _SEndLine;
+	private float LineHeight;
+	private byte _DraggingCursor = CURSOR_NONE;
 
 
 	// -----------------------
@@ -266,6 +269,7 @@ public class VEdit extends View {
 	public void setLinePadding(float top, float bottom) {
 		_LinePaddingTop = top;
 		_LinePaddingBottom = bottom;
+		onFontChange();
 		invalidate();
 	}
 
@@ -302,16 +306,29 @@ public class VEdit extends View {
 		return _SEnd;
 	}
 
-	public void setSelectionStart(int st) {
-		_SStart = st;
+	// return true if the start and the end of the selection has reserved
+	public boolean setSelectionStart(int st) {
+		boolean ret = false;
+		if (st > _SEnd) {
+			_SStart = _SEnd;
+			_SEnd = st;
+			ret = true;
+		} else _SStart = st;
 		onSelectionUpdate();
 		invalidate();
+		return ret;
 	}
 
-	public void setSelectionEnd(int en) {
-		_SEnd = en;
+	public boolean setSelectionEnd(int en) {
+		boolean ret = false;
+		if (en < _SStart) {
+			_SEnd = _SStart;
+			_SStart = en;
+			ret = true;
+		} else _SEnd = en;
 		onSelectionUpdate();
 		invalidate();
+		return ret;
 	}
 
 	public void setSelectionRange(int st, int en) {
@@ -497,8 +514,13 @@ public class VEdit extends View {
 	}
 
 	public void makeLineVisible(int line) {
-		final float nh = TextHeight + _LinePaddingTop + _LinePaddingBottom;
-		float y = nh * line - getHeight();
+		float y = LineHeight * line - LineHeight;
+		if (getScrollY() > y) {
+			scrollTo(getScrollX(), (int) y);
+			postInvalidate();
+			return;
+		}
+		y += LineHeight - getHeight();
 		if (getScrollY() < y) {
 			scrollTo(getScrollX(), (int) Math.ceil(y));
 			postInvalidate();
@@ -695,6 +717,25 @@ public class VEdit extends View {
 		setSelectionRange(st + 1, en);
 	}
 
+	public int[] getCursorByPosition(float x, float y) {
+		x -= _ContentLeftPadding;
+		if (_ShowLineNumber) x -= (LineNumberWidth + LINENUM_SPLIT_WIDTH);
+		int[] rret = new int[2];
+		rret[0] = Math.min((int) Math.ceil(y / LineHeight), E[0] - 1);
+		if (rret[0] < 1) rret[0] = 1;
+		final int en = E[rret[0] + 1] - 1;
+		int ret = E[rret[0]];
+		for (float sum = -x; ret < en; ret++) {
+			if ((sum += getCharWidth(S[ret])) >= 0) {
+				if ((-(sum - getCharWidth(S[ret]))) > sum) // 是前面的更逼近一些
+					ret++;
+				break;
+			}
+		}
+		rret[1] = ret - E[rret[0]];
+		return rret;
+	}
+
 	public static boolean isSelectableChar(char c) {
 		return (c >= '0' && c <= '9') || (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || c == '.' || Character.isJavaIdentifierPart(c);
 	}
@@ -704,6 +745,11 @@ public class VEdit extends View {
 	// -----Override Methods-----
 	// --------------------------
 
+	@Override
+	protected void onDetachedFromWindow() {
+		super.onDetachedFromWindow();
+		_DraggingCursor = CURSOR_NONE;
+	}
 
 	@Override
 	protected void onSizeChanged(int w, int h, int oldw, int oldh) {
@@ -725,6 +771,11 @@ public class VEdit extends View {
 			case MotionEvent.ACTION_DOWN:
 				_stX = _lastX = event.getX();
 				_stY = _lastY = event.getY();
+				_DraggingCursor = getDraggingCursor(_stX + getScrollX(), _stY + getScrollY());
+				if (_DraggingCursor != CURSOR_NONE) {
+					_stX += getScrollX();
+					_stY += getScrollY();
+				}
 				if (!Scroller.isFinished())
 					Scroller.abortAnimation();
 				if (!isFocused())
@@ -732,6 +783,25 @@ public class VEdit extends View {
 				return true;
 			case MotionEvent.ACTION_MOVE:
 				float x = event.getX(), y = event.getY();
+				if (_DraggingCursor != CURSOR_NONE) {
+					int[] nc = getCursorByPosition(x + getScrollX() - _stX + _lastX, y + getScrollY() - _stY + _lastY);
+					switch (_DraggingCursor) {
+						case CURSOR_NORMAL: {
+							moveCursor(nc[0], nc[1]);
+							return true;
+						}
+						case CURSOR_LEFT: {
+							if (setSelectionStart(E[nc[0]] + nc[1])) _DraggingCursor = CURSOR_RIGHT;
+							makeCursorVisible(nc[0], nc[1]);
+							return true;
+						}
+						case CURSOR_RIGHT: {
+							if (setSelectionEnd(E[nc[0]] + nc[1])) _DraggingCursor = CURSOR_LEFT;
+							makeCursorVisible(nc[0], nc[1]);
+							return true;
+						}
+					}
+				}
 				if ((!isDragging) && (Math.abs(x - _stX) > _touchSlop || Math.abs(y - _stY) > _touchSlop)) {
 					isDragging = true;
 					if (_fixScroll)
@@ -767,6 +837,10 @@ public class VEdit extends View {
 				return true;
 			case MotionEvent.ACTION_CANCEL:
 			case MotionEvent.ACTION_UP:
+				if (_DraggingCursor != CURSOR_NONE) {
+					_DraggingCursor = CURSOR_NONE;
+					return true;
+				}
 				SpeedCalc.computeCurrentVelocity(_flingFactor);
 				if (!isDragging) {
 					onClick(event.getX() + getScrollX(), event.getY() + getScrollY());
@@ -848,13 +922,12 @@ public class VEdit extends View {
 		long st = System.currentTimeMillis();
 		final boolean showSelecting = isRangeSelecting();
 		final boolean showCursor = (!showSelecting) && _Editable;
-		final float nh = TextHeight + _LinePaddingBottom + _LinePaddingTop;
 		final float bottom = getScrollY() + getHeight() + YOffset;
 		final int right = getScrollX() + getWidth();
 		final float xo = (_ShowLineNumber ? LineNumberWidth + LINENUM_SPLIT_WIDTH : 0) + _ContentLeftPadding;
 
-		int line = Math.max((int) (getScrollY() / nh) + 1, 1);
-		float y = (line - 1) * nh + YOffset + _LinePaddingTop;
+		int line = Math.max((int) (getScrollY() / LineHeight) + 1, 1);
+		float y = (line - 1) * LineHeight + YOffset + _LinePaddingTop;
 		float XStart, wtmp, x;
 		int i, en;
 		int tot;
@@ -879,7 +952,7 @@ public class VEdit extends View {
 			if (getScrollX() > XStart && i < _TextLength)
 				while ((wtmp = XStart + getCharWidth(S[i])) < getScrollX()) {
 					if (++i >= en) {
-						if ((y += nh) >= bottom) break LineDraw;
+						if ((y += LineHeight) >= bottom) break LineDraw;
 						continue LineDraw;
 					}
 					XStart = wtmp;
@@ -916,28 +989,28 @@ public class VEdit extends View {
 					canvas.drawRect(xo, y - YOffset - _LinePaddingTop, x, y - YOffset + TextHeight + _LinePaddingBottom, ColorPaint);
 				}
 			}
-			if ((y += nh) >= bottom) break;
+			if ((y += LineHeight) >= bottom) break;
 		}
 		if (showCursor) {
 			ColorPaint.setColor(_Scheme.getCursorLineColor());
 			ColorPaint.setStrokeWidth(_CursorWidth);
-			float sty = nh * _CursorLine;
-			canvas.drawLine(xo + _CursorHorizonOffset, sty - nh, xo + _CursorHorizonOffset, sty, ColorPaint);
-			CURSOR.draw(canvas, xo + _CursorHorizonOffset, sty, (byte) 0);
+			float sty = LineHeight * _CursorLine;
+			canvas.drawLine(xo + _CursorHorizonOffset, sty - LineHeight, xo + _CursorHorizonOffset, sty, ColorPaint);
+			CURSOR.draw(canvas, xo + _CursorHorizonOffset, sty, CURSOR_NORMAL);
 		} else if (showSelecting) {
-			float sty = nh * _SStartLine;
+			float sty = LineHeight * _SStartLine;
 			if (_SStartLine == _SEndLine) {
 				ColorPaint.setColor(_Scheme.getSelectionColor());
-				canvas.drawRect(xo + _SStartHorizonOffset, sty - nh, xo + _SEndHorizonOffset, sty, ColorPaint);
+				canvas.drawRect(xo + _SStartHorizonOffset, sty - LineHeight, xo + _SEndHorizonOffset, sty, ColorPaint);
 			} else {
-				float eny = nh * _SEndLine;
+				float eny = LineHeight * _SEndLine;
 				ColorPaint.setColor(_Scheme.getSelectionColor());
 				if (SStartLineEnd != -1)
-					canvas.drawRect(xo + _SStartHorizonOffset, sty - nh, xo + SStartLineEnd, sty, ColorPaint);
-				canvas.drawRect(xo, eny - nh, xo + _SEndHorizonOffset, eny, ColorPaint);
+					canvas.drawRect(xo + _SStartHorizonOffset, sty - LineHeight, SStartLineEnd, sty, ColorPaint);
+				canvas.drawRect(xo, eny - LineHeight, xo + _SEndHorizonOffset, eny, ColorPaint);
 			}
-			CURSOR.draw(canvas, xo + _SStartHorizonOffset, sty, (byte) 1);
-			CURSOR.draw(canvas, xo + _SEndHorizonOffset, nh * _SEndLine, (byte) 2);
+			CURSOR.draw(canvas, xo + _SStartHorizonOffset, sty, CURSOR_LEFT);
+			CURSOR.draw(canvas, xo + _SEndHorizonOffset, LineHeight * _SEndLine, CURSOR_RIGHT);
 		}
 		if (G.LOG_TIME) {
 			st = System.currentTimeMillis() - st;
@@ -948,6 +1021,29 @@ public class VEdit extends View {
 	// -------------------------
 	// -----Private Methods-----
 	// -------------------------
+
+	private byte getDraggingCursor(float x, float y) {
+		final float ori = x;
+		x -= _ContentLeftPadding;
+		if (_ShowLineNumber) x -= (LineNumberWidth + LINENUM_SPLIT_WIDTH);
+		if (isRangeSelecting()) {
+			if (CURSOR.isTouched(x - _SStartHorizonOffset, y - LineHeight * _SStartLine, CURSOR_LEFT)) {
+				_lastX = ori;
+				_lastY = LineHeight * _SStartLine - LineHeight * 0.5f;
+				return CURSOR_LEFT;
+			}
+			if (CURSOR.isTouched(x - _SEndHorizonOffset, y - LineHeight * _SEndLine, CURSOR_RIGHT)) {
+				_lastX = ori;
+				_lastY = LineHeight * _SEndLine - LineHeight * 0.5f;
+				return CURSOR_RIGHT;
+			}
+		} else if (CURSOR.isTouched(x - _CursorHorizonOffset, y - LineHeight * _CursorLine, CURSOR_NORMAL)) {
+			_lastX = ori;
+			_lastY = LineHeight * _CursorLine - LineHeight * 0.5f;
+			return CURSOR_NORMAL;
+		}
+		return CURSOR_NONE;
+	}
 
 	private void deleteSurrounding(int beforeLength, int afterLength) {
 		if (isRangeSelecting())
@@ -1020,23 +1116,14 @@ public class VEdit extends View {
 		long time = System.currentTimeMillis();
 		boolean dc = time - LastClickTime < DOUBLE_CLICK_INTERVAL;
 		LastClickTime = time;
-		x -= _ContentLeftPadding;
-		if (_ShowLineNumber)
-			x -= (LineNumberWidth + LINENUM_SPLIT_WIDTH);
-		_CursorLine = Math.min((int) Math.ceil(y / (TextHeight + _LinePaddingTop + _LinePaddingBottom)), E[0] - 1);
+		int[] nc = getCursorByPosition(x, y);
 		finishSelecting();
-		final int en = E[_CursorLine + 1] - 1;
-		int ret = E[_CursorLine];
-		for (float sum = -x; ret < en; ret++) {
-			if ((sum += getCharWidth(S[ret])) >= 0) {
-				if (dc) expandSelectionFrom(ret);
-				if ((-(sum - getCharWidth(S[ret]))) > sum) // 是前面的更逼近一些
-					ret++;
-				break;
-			}
+		if (dc) expandSelectionFrom(E[nc[0]] + nc[1]);
+		else {
+			_CursorLine = nc[0];
+			_CursorColumn = nc[1];
+			makeCursorVisible(_CursorLine, _CursorColumn);
 		}
-		_CursorColumn = ret - E[_CursorLine];
-		makeCursorVisible(_CursorLine, _CursorColumn);
 		_ComposingStart = -1;
 		if (_IMM != null) {
 			_IMM.viewClicked(this);
@@ -1050,6 +1137,7 @@ public class VEdit extends View {
 	private void onFontChange() {
 		YOffset = -ContentPaint.ascent();
 		TextHeight = ContentPaint.descent() + YOffset;
+		LineHeight = TextHeight + _LinePaddingTop + _LinePaddingBottom;
 		CURSOR.setHeight(TextHeight);
 		clearCharWidthCache();
 		onLineChange();
@@ -1058,7 +1146,7 @@ public class VEdit extends View {
 	}
 
 	private void onLineChange() {
-		ContentHeight = (int) ((TextHeight + _LinePaddingTop + _LinePaddingBottom) * (E[0] - 1));
+		ContentHeight = (int) (LineHeight * (E[0] - 1));
 		_YScrollRange = Math.max(ContentHeight - getHeight(), 0);
 		LineNumberWidth = LineNumberPaint.measureText("9") * ((int) Math.log10(E[0] - 1) + 1);
 	}
@@ -1411,6 +1499,26 @@ public class VEdit extends View {
 					break;
 			}
 			canvas.translate(-x, -y);
+		}
+
+		public boolean isTouched(float x, float y, byte type) {
+			Bitmap cur = null;
+			switch (type) {
+				case 0:
+					cur = c0;
+					x += radius;
+					break;
+				case 1:
+					cur = c1;
+					x += radius * 2;
+					break;
+				case 2:
+					cur = c2;
+					break;
+			}
+			if (cur == null) return false;
+			if (x < 0 || x >= cur.getWidth() || y < 0 || y >= cur.getHeight()) return false;
+			return cur.getPixel((int) (x + 0.5), (int) (y + 0.5)) != Color.TRANSPARENT;
 		}
 	}
 
