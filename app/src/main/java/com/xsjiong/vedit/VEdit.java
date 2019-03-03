@@ -21,6 +21,7 @@ import com.xsjiong.vlexer.VLexer;
 
 import java.io.*;
 import java.net.URL;
+import java.nio.CharBuffer;
 import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
@@ -39,6 +40,7 @@ public class VEdit extends View {
 	public static final int SCROLL_TO_CURSOR_EXTRA = 20;
 	public static final short CHAR_SPACE = 32, CHAR_TAB = 9;
 	public static final byte CURSOR_NONE = -1, CURSOR_NORMAL = 0, CURSOR_LEFT = 1, CURSOR_RIGHT = 2;
+	public static final int EDIT_ACTION_STACK_SIZE = 64;
 
 
 	// -----------------
@@ -82,6 +84,7 @@ public class VEdit extends View {
 	private int _SStartLine, _SEndLine;
 	private float LineHeight;
 	private byte _DraggingCursor = CURSOR_NONE;
+	private EditActionStack _EditActionStack = new EditActionStack(this, EDIT_ACTION_STACK_SIZE);
 
 
 	// -----------------------
@@ -451,13 +454,14 @@ public class VEdit extends View {
 	}
 
 	public void insertChar(char c) {
-		int[] ret = insertChar(_CursorLine, _CursorColumn, c);
-		_CursorLine = ret[0];
-		_CursorColumn = ret[1];
-		onSelectionUpdate();
+		insertChar(_CursorLine, _CursorColumn, c);
 	}
 
-	public int[] insertChar(int line, int column, char c) {
+	public void insertChar(int line, int column, char c) {
+		_EditActionStack.addAction(new EditAction.InsertCharAction(line, column, c));
+	}
+
+	public int[] _insertChar(int line, int column, char c) {
 		if (!_Editable) return new int[] {line, column};
 		final int pos = E[line] + column;
 
@@ -561,13 +565,21 @@ public class VEdit extends View {
 	}
 
 	public void insertChars(char[] cs) {
-		int[] ret = insertChars(_CursorLine, _CursorColumn, cs);
+		insertChars(_CursorLine, _CursorColumn, cs);
+	}
+
+	public void insertChars(int line, int column, char[] cs) {
+		_EditActionStack.addAction(new EditAction.InsertCharsAction(line, column, cs));
+	}
+
+	public void _insertChars(char[] cs) {
+		int[] ret = _insertChars(_CursorLine, _CursorColumn, cs);
 		_CursorLine = ret[0];
 		_CursorColumn = ret[1];
 		onSelectionUpdate();
 	}
 
-	public int[] insertChars(int line, int column, char[] cs) {
+	public int[] _insertChars(int line, int column, char[] cs) {
 		if (!_Editable) return new int[] {line, column};
 		final int tl = cs.length;
 		final int pos = E[line] + column;
@@ -673,8 +685,8 @@ public class VEdit extends View {
 		}
 		int line = findLine(en);
 		int[] ret = deleteChars(line, en - E[line], en - st);
-		ret = insertChars(ret[0], ret[1], cs);
-		moveCursor(ret[0], ret[1]);
+		insertChars(ret[0], ret[1], cs);
+		// TODO 给replace弄一个Action
 	}
 
 	public void moveCursorRelative(int count) {
@@ -740,6 +752,18 @@ public class VEdit extends View {
 		return (c >= '0' && c <= '9') || (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || c == '.' || Character.isJavaIdentifierPart(c);
 	}
 
+	public void clearEditActions() {
+		_EditActionStack.clear();
+	}
+
+	public boolean redo() {
+		return _EditActionStack.redo();
+	}
+
+	public boolean undo() {
+		return _EditActionStack.undo();
+	}
+
 
 	// --------------------------
 	// -----Override Methods-----
@@ -749,6 +773,7 @@ public class VEdit extends View {
 	protected void onDetachedFromWindow() {
 		super.onDetachedFromWindow();
 		_DraggingCursor = CURSOR_NONE;
+		CURSOR.recycle();
 	}
 
 	@Override
@@ -1119,11 +1144,9 @@ public class VEdit extends View {
 		int[] nc = getCursorByPosition(x, y);
 		finishSelecting();
 		if (dc) expandSelectionFrom(E[nc[0]] + nc[1]);
-		else {
-			_CursorLine = nc[0];
-			_CursorColumn = nc[1];
-			makeCursorVisible(_CursorLine, _CursorColumn);
-		}
+		_CursorLine = nc[0];
+		_CursorColumn = nc[1];
+		makeCursorVisible(_CursorLine, _CursorColumn);
 		_ComposingStart = -1;
 		if (_IMM != null) {
 			_IMM.viewClicked(this);
@@ -1425,7 +1448,6 @@ public class VEdit extends View {
 
 	private static class GlassCursor {
 		private float h, radius;
-		private Path path = new Path();
 		private Paint mp = new Paint();
 		private VEdit parent;
 		private Bitmap c0, c1, c2;
@@ -1486,6 +1508,7 @@ public class VEdit extends View {
 		}
 
 		public void draw(Canvas canvas, float x, float y, byte type) {
+			if (isRecycled()) setHeight(h / 1.5f);
 			canvas.translate(x, y);
 			switch (type) {
 				case 0:
@@ -1502,6 +1525,7 @@ public class VEdit extends View {
 		}
 
 		public boolean isTouched(float x, float y, byte type) {
+			if (isRecycled()) setHeight(h / 1.5f);
 			Bitmap cur = null;
 			switch (type) {
 				case 0:
@@ -1520,99 +1544,161 @@ public class VEdit extends View {
 			if (x < 0 || x >= cur.getWidth() || y < 0 || y >= cur.getHeight()) return false;
 			return cur.getPixel((int) (x + 0.5), (int) (y + 0.5)) != Color.TRANSPARENT;
 		}
+
+		private static void tryRecycle(Bitmap bitmap) {
+			if (bitmap != null && !bitmap.isRecycled()) bitmap.recycle();
+		}
+
+		public boolean isRecycled() {
+			return c0 == null;
+		}
+
+		public void recycle() {
+			tryRecycle(c0);
+			tryRecycle(c1);
+			tryRecycle(c2);
+			mp = null;
+		}
 	}
 
-	/*private static class VInputConnection extends BaseInputConnection {
-		private VEdit Q;
+	public interface EditAction {
+		void redo(VEdit edit);
 
-		public VInputConnection(VEdit parent) {
-			super(parent, true);
-			Q = parent;
-		}
+		void undo(VEdit edit);
 
-		@Override
-		public boolean setComposingRegion(int start, int end) {
-			return false;
-		}
+		void recycle();
 
-		@Override
-		public boolean setComposingText(CharSequence text, int newCursorPosition) {
-			return false;
-		}
+		class InsertCharAction implements EditAction {
+			private int line, column;
+			private char ch;
 
-		@Override
-		public boolean commitText(CharSequence text, int newCursorPosition) {
-			char[] cs = new char[text.length()];
-			for (int i = 0; i < cs.length; i++) cs[i] = text.charAt(i);
-			Q.commitText(cs);
-			return true;
-		}
-
-		@Override
-		public boolean performContextMenuAction(int id) {
-			switch (id) {
-				case android.R.id.copy: {
-					if (Q.isRangeSelecting()) {
-						ClipboardManager manager = Q.getClipboardManager();
-						manager.setPrimaryClip(ClipData.newPlainText(null, Q.getSelectedText()));
-						Q.finishSelecting();
-					}
-					break;
-				}
-				case android.R.id.cut:
-					if (Q.isRangeSelecting()) {
-						ClipboardManager manager = Q.getClipboardManager();
-						manager.setPrimaryClip(ClipData.newPlainText(null, Q.getSelectedText()));
-						int line = Q.findLine(Q._SEnd);
-						Q.deleteChars(line, Q._SEnd - Q.E[line], Q._SEnd - Q._SStart);
-						Q.finishSelecting();
-					}
-					break;
-				case android.R.id.paste:
-					ClipData data = Q.getClipboardManager().getPrimaryClip();
-					if (data != null && data.getItemCount() > 0) {
-						CharSequence s = data.getItemAt(0).coerceToText(Q.getContext());
-						char[] cs = new char[s.length()];
-						for (int i = 0; i < cs.length; i++) cs[i] = s.charAt(i);
-						Q.commitText(cs);
-					}
-					break;
-				case android.R.id.selectAll:
-					Q.setSelectionRange(0, Q._TextLength);
-					break;
+			public InsertCharAction(int line, int column, char ch) {
+				this.line = line;
+				this.column = column;
+				this.ch = ch;
 			}
-			return true;
-		}
 
-		@Override
-		public boolean setSelection(int start, int end) {
-			if (start == end) {
-				Q.finishSelecting();
-				Q.moveCursor(start);
-				return true;
+			public void setChar(char ch) {
+				this.ch = ch;
 			}
-			Q._SStart = start;
-			Q._SEnd = end;
-			Q.postInvalidate();
+
+			@Override
+			public void redo(VEdit edit) {
+				int[] ret = edit._insertChar(line, column, ch);
+				edit.moveCursor(ret[0], ret[1]);
+			}
+
+			@Override
+			public void undo(VEdit edit) {
+				int nColumn = edit.E[line] + column + 1;
+				int nLine = edit.findLine(nColumn);
+				nColumn -= edit.E[nLine];
+				int[] ret = edit.deleteChar(nLine, nColumn);
+				edit.moveCursor(ret[0], ret[1]);
+			}
+
+			@Override
+			public void recycle() {
+			}
+		}
+
+		class InsertCharsAction implements EditAction {
+			private int line, column;
+			private char[] content;
+
+			public InsertCharsAction(int line, int column, char[] content) {
+				this.line = line;
+				this.column = column;
+				this.content = content;
+			}
+
+			public void appendText(char[] cs) {
+				char[] n = new char[content.length + cs.length];
+				System.arraycopy(content, 0, n, 0, content.length);
+				System.arraycopy(cs, 0, n, content.length, cs.length);
+				content = n;
+				n = null;
+			}
+
+			public void setChars(char[] s) {
+				content = s;
+			}
+
+			@Override
+			public void redo(VEdit edit) {
+				int[] ret = edit._insertChars(line, column, content);
+				edit.moveCursor(ret[0], ret[1]);
+			}
+
+			@Override
+			public void undo(VEdit edit) {
+				int nColumn = edit.E[line] + column + content.length;
+				int nLine = edit.findLine(nColumn);
+				nColumn -= edit.E[nLine];
+				int[] ret = edit.deleteChars(nLine, nColumn, content.length);
+				edit.moveCursor(ret[0], ret[1]);
+			}
+
+			@Override
+			public void recycle() {
+				content = null;
+			}
+		}
+	}
+
+	public static class EditActionStack {
+		private VEdit parent;
+		private EditAction[] arr;
+		private int _pos;
+		private int _undoCount;
+
+		public EditActionStack(VEdit parent) {
+			this(parent, 64);
+		}
+
+		public EditActionStack(VEdit parent, int maxSize) {
+			this.parent = parent;
+			setMaxSize(maxSize);
+		}
+
+		public void setMaxSize(int size) {
+			arr = new EditAction[size];
+			_pos = _undoCount = 0;
+		}
+
+		public void clear() {
+			_pos = _undoCount = 0;
+		}
+
+		public int getMaxSize() {
+			return arr.length;
+		}
+
+		public void addAction(EditAction action) {
+			arr[_pos++] = action;
+			action.redo(parent);
+			if (_pos == arr.length) _pos = 0;
+		}
+
+		public boolean undo() {
+			if (_undoCount >= arr.length) return false;
+			if (_pos == 0) _pos = arr.length;
+			_pos--;
+			if (arr[_pos] == null) {
+				if (++_pos == arr.length) _pos = 0;
+				return false;
+			}
+			arr[_pos].undo(parent);
+			_undoCount++;
 			return true;
 		}
 
-		@Override
-		public boolean deleteSurroundingText(int beforeLength, int afterLength) {
-			Q.deleteSurrounding(beforeLength, afterLength);
+		public boolean redo() {
+			if (_undoCount == 0) return false;
+			arr[_pos].redo(parent);
+			if (++_pos == arr.length) _pos = 0;
+			_undoCount--;
 			return true;
 		}
-
-		@Override
-		public boolean deleteSurroundingTextInCodePoints(int beforeLength, int afterLength) {
-			deleteSurroundingText(beforeLength, afterLength);
-			return true;
-		}
-
-		@Override
-		public boolean sendKeyEvent(KeyEvent event) {
-			Q.processEvent(event);
-			return true;
-		}
-	}*/
+	}
 }
