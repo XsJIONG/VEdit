@@ -21,7 +21,6 @@ import com.xsjiong.vlexer.VLexer;
 
 import java.io.*;
 import java.net.URL;
-import java.nio.CharBuffer;
 import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
@@ -33,7 +32,7 @@ public class VEdit extends View {
 	// -----Constants------
 	// --------------------
 
-	public static final int DOUBLE_CLICK_INTERVAL = 200;
+	public static final int DOUBLE_CLICK_INTERVAL = 200, MERGE_ACTIONS_INTERVAL = 250;
 	public static final int LINENUM_SPLIT_WIDTH = 7;
 	public static final int EXPAND_SIZE = 64;
 	public static final int EMPTY_CHAR_WIDTH = 10;
@@ -74,7 +73,7 @@ public class VEdit extends View {
 	private boolean _ShowLineNumber = true;
 	private float[] _CharWidths = new float[65536];
 	private InputMethodManager _IMM;
-	private long LastClickTime = 0;
+	private long LastClickTime = 0, LastInsertCharTime = 0;
 	private int _ComposingStart = -1;
 	private VEditScheme _Scheme = new VEditSchemeLight();
 	private VLexer _Lexer = new VJavaLexer();
@@ -85,7 +84,6 @@ public class VEdit extends View {
 	private float LineHeight;
 	private byte _DraggingCursor = CURSOR_NONE;
 	private EditActionStack _EditActionStack = new EditActionStack(this, EDIT_ACTION_STACK_SIZE);
-
 
 	// -----------------------
 	// -----Constructors------
@@ -134,8 +132,7 @@ public class VEdit extends View {
 
 	public void deleteSelecting() {
 		int line = findLine(_SEnd);
-		int[] ret = deleteChars(line, _SEnd - E[line], _SEnd - _SStart);
-		moveCursor(ret[0], ret[1]);
+		deleteChars(line, _SEnd - E[line], _SEnd - _SStart);
 		finishSelecting();
 	}
 
@@ -419,13 +416,22 @@ public class VEdit extends View {
 	}
 
 	public void deleteChar() {
-		int[] ret = deleteChar(_CursorLine, _CursorColumn);
+		deleteChar(_CursorLine, _CursorColumn);
+	}
+
+	public void deleteChar(int line, int column) {
+		if (line == 1 && column == 0) return;
+		_EditActionStack.addAction(new EditAction.DeleteCharAction(line, column, S[E[line] + column - 1]));
+	}
+
+	public void _deleteChar() {
+		int[] ret = _deleteChar(_CursorLine, _CursorColumn);
 		_CursorLine = ret[0];
 		_CursorColumn = ret[1];
 		onSelectionUpdate();
 	}
 
-	public int[] deleteChar(int line, int column) {
+	public int[] _deleteChar(int line, int column) {
 		if ((!_Editable) || (line == 1 && column == 0)) return new int[] {line, column};
 		final int pos = E[line] + column;
 
@@ -548,6 +554,7 @@ public class VEdit extends View {
 
 	public void finishSelecting() {
 		_SStart = -1;
+		onSelectionUpdate();
 		postInvalidate();
 	}
 
@@ -569,6 +576,10 @@ public class VEdit extends View {
 	}
 
 	public void insertChars(int line, int column, char[] cs) {
+		if (cs.length == 1) {
+			insertChar(line, column, cs[0]);
+			return;
+		}
 		_EditActionStack.addAction(new EditAction.InsertCharsAction(line, column, cs));
 	}
 
@@ -638,13 +649,22 @@ public class VEdit extends View {
 	}
 
 	public void deleteChars(int count) {
-		int[] ret = deleteChars(_CursorLine, _CursorColumn, count);
+		deleteChars(_CursorLine, _CursorColumn, count);
+	}
+
+	public void deleteChars(int line, int column, int count) {
+		int pos = E[line] + column;
+		_EditActionStack.addAction(new EditAction.DeleteCharsAction(line, column, getChars(pos - count, pos)));
+	}
+
+	public void _deleteChars(int count) {
+		int[] ret = _deleteChars(_CursorLine, _CursorColumn, count);
 		_CursorLine = ret[0];
 		_CursorColumn = ret[1];
 		onSelectionUpdate();
 	}
 
-	public int[] deleteChars(int line, int column, int count) {
+	public int[] _deleteChars(int line, int column, int count) {
 		if ((!_Editable) || count == 0) return new int[] {line, column};
 		if (count > _TextLength) {
 			S = new char[0];
@@ -684,9 +704,7 @@ public class VEdit extends View {
 			st = tmp;
 		}
 		int line = findLine(en);
-		int[] ret = deleteChars(line, en - E[line], en - st);
-		insertChars(ret[0], ret[1], cs);
-		// TODO 给replace弄一个Action
+		_EditActionStack.addAction(new EditAction.ReplaceAction(line, en - E[line], getChars(st, en), cs));
 	}
 
 	public void moveCursorRelative(int count) {
@@ -710,8 +728,9 @@ public class VEdit extends View {
 	public void commitText(char[] cs) {
 		_ComposingStart = -1;
 		if (isRangeSelecting()) {
-			replace(_SStart, _SEnd, cs);
+			int ss = _SStart;
 			finishSelecting();
+			replace(ss, _SEnd, cs);
 		} else insertChars(cs);
 	}
 
@@ -1076,8 +1095,7 @@ public class VEdit extends View {
 		else {
 			int pos = getCursorPosition() + afterLength;
 			int line = findLine(pos);
-			int[] ret = deleteChars(line, pos - E[line], afterLength + beforeLength);
-			moveCursor(ret[0], ret[1]);
+			deleteChars(line, pos - E[line], afterLength + beforeLength);
 		}
 	}
 
@@ -1139,7 +1157,7 @@ public class VEdit extends View {
 	private void onClick(float x, float y) {
 		if (!_Editable) return;
 		long time = System.currentTimeMillis();
-		boolean dc = time - LastClickTime < DOUBLE_CLICK_INTERVAL;
+		boolean dc = time - LastClickTime <= DOUBLE_CLICK_INTERVAL;
 		LastClickTime = time;
 		int[] nc = getCursorByPosition(x, y);
 		finishSelecting();
@@ -1379,8 +1397,7 @@ public class VEdit extends View {
 						ClipboardManager manager = Q.getClipboardManager();
 						manager.setPrimaryClip(ClipData.newPlainText(null, Q.getSelectedText()));
 						int line = Q.findLine(Q._SEnd);
-						int[] ret = Q.deleteChars(line, Q._SEnd - Q.E[line], Q._SEnd - Q._SStart);
-						Q.moveCursor(ret[0], ret[1]);
+						Q.deleteChars(line, Q._SEnd - Q.E[line], Q._SEnd - Q._SStart);
 						Q.finishSelecting();
 					}
 					break;
@@ -1568,6 +1585,159 @@ public class VEdit extends View {
 
 		void recycle();
 
+		class MergedAction implements EditAction {
+			public static final int MERGE_BUFFER = 16;
+
+			private EditAction[] actions;
+			private int pos;
+
+			public static MergedAction obtain(EditAction ori, EditAction ac) {
+				if (ori instanceof MergedAction) {
+					MergedAction ret = (MergedAction) ori;
+					ret.append(ac);
+					return ret;
+				} else return new MergedAction(new EditAction[] {ori, ac});
+			}
+
+			public MergedAction(EditAction[] actions) {
+				this.actions = actions;
+				this.pos = actions.length;
+			}
+
+			public void append(EditAction action) {
+				if (pos == actions.length) {
+					EditAction[] na = new EditAction[actions.length + MERGE_BUFFER];
+					System.arraycopy(actions, 0, na, 0, actions.length);
+					actions = na;
+					na = null;
+				}
+				actions[pos++] = action;
+			}
+
+			@Override
+			public void redo(VEdit edit) {
+				for (int i = 0; i < pos; i++) actions[i].redo(edit);
+			}
+
+			@Override
+			public void undo(VEdit edit) {
+				for (int i = pos - 1; i >= 0; i--) actions[i].undo(edit);
+			}
+
+			@Override
+			public void recycle() {
+				actions = null;
+			}
+		}
+
+		class ReplaceAction implements EditAction {
+			private int line, column;
+			private char[] origin;
+			private char[] content;
+
+			public ReplaceAction(int line, int column, char[] origin, char[] content) {
+				this.line = line;
+				this.column = column;
+				this.origin = origin;
+				this.content = content;
+			}
+
+			public void setOrigin(char[] cs) {
+				this.origin = cs;
+			}
+
+			public void setChars(char[] cs) {
+				this.content = cs;
+			}
+
+			@Override
+			public void redo(VEdit edit) {
+				int[] ret = edit._deleteChars(line, column, origin.length);
+				ret = edit._insertChars(ret[0], ret[1], content);
+				edit.moveCursor(ret[0], ret[1]);
+			}
+
+			@Override
+			public void undo(VEdit edit) {
+				int column = edit.E[this.line] + this.column - origin.length + content.length;
+				int line = edit.findLine(column);
+				column -= edit.E[line];
+				int[] ret = edit._deleteChars(line, column, content.length);
+				ret = edit._insertChars(ret[0], ret[1], origin);
+				edit.moveCursor(ret[0], ret[1]);
+			}
+
+			@Override
+			public void recycle() {
+				origin = null;
+				content = null;
+			}
+		}
+
+		class DeleteCharAction implements EditAction {
+			private int line, column;
+			private char ch;
+
+			public DeleteCharAction(int line, int column, char c) {
+				this.line = line;
+				this.column = column;
+				this.ch = c;
+			}
+
+			public void setChar(char c) {
+				this.ch = c;
+			}
+
+			@Override
+			public void redo(VEdit edit) {
+				ch = edit.S[edit.E[line] + column - 1];
+				int[] ret = edit._deleteChar(line, column);
+				edit.moveCursor(ret[0], ret[1]);
+			}
+
+			@Override
+			public void undo(VEdit edit) {
+				int column = edit.E[this.line] + this.column - 1;
+				int line = edit.findLine(column);
+				int[] ret = edit._insertChar(line, column - edit.E[line], ch);
+				edit.moveCursor(ret[0], ret[1]);
+			}
+
+			@Override
+			public void recycle() {
+			}
+		}
+
+		class DeleteCharsAction implements EditAction {
+			private int line, column;
+			private char[] content;
+
+			public DeleteCharsAction(int line, int column, char[] content) {
+				this.line = line;
+				this.column = column;
+				this.content = content;
+			}
+
+			@Override
+			public void redo(VEdit edit) {
+				int[] ret = edit._deleteChars(line, column, content.length);
+				edit.moveCursor(ret[0], ret[1]);
+			}
+
+			@Override
+			public void undo(VEdit edit) {
+				int column = edit.E[this.line] + this.column - content.length;
+				int line = edit.findLine(column);
+				int[] ret = edit._insertChars(line, column - edit.E[line], content);
+				edit.moveCursor(ret[0], ret[1]);
+			}
+
+			@Override
+			public void recycle() {
+				content = null;
+			}
+		}
+
 		class InsertCharAction implements EditAction {
 			private int line, column;
 			private char ch;
@@ -1593,7 +1763,7 @@ public class VEdit extends View {
 				int nColumn = edit.E[line] + column + 1;
 				int nLine = edit.findLine(nColumn);
 				nColumn -= edit.E[nLine];
-				int[] ret = edit.deleteChar(nLine, nColumn);
+				int[] ret = edit._deleteChar(nLine, nColumn);
 				edit.moveCursor(ret[0], ret[1]);
 			}
 
@@ -1635,7 +1805,7 @@ public class VEdit extends View {
 				int nColumn = edit.E[line] + column + content.length;
 				int nLine = edit.findLine(nColumn);
 				nColumn -= edit.E[nLine];
-				int[] ret = edit.deleteChars(nLine, nColumn, content.length);
+				int[] ret = edit._deleteChars(nLine, nColumn, content.length);
 				edit.moveCursor(ret[0], ret[1]);
 			}
 
@@ -1651,6 +1821,7 @@ public class VEdit extends View {
 		private EditAction[] arr;
 		private int _pos;
 		private int _undoCount;
+		private long LastActionTime = 0;
 
 		public EditActionStack(VEdit parent) {
 			this(parent, 64);
@@ -1675,6 +1846,18 @@ public class VEdit extends View {
 		}
 
 		public void addAction(EditAction action) {
+			long t = System.currentTimeMillis();
+			long cur = t - LastActionTime;
+			LastActionTime = t;
+			if (cur <= MERGE_ACTIONS_INTERVAL) {
+				EditAction lac = getLastAction();
+				if (lac != null) {
+					setLastAction(EditAction.MergedAction.obtain(lac, action));
+					action.redo(parent);
+					return;
+				}
+			}
+			if (arr[_pos] != null) arr[_pos].recycle();
 			arr[_pos++] = action;
 			action.redo(parent);
 			if (_pos == arr.length) _pos = 0;
@@ -1699,6 +1882,20 @@ public class VEdit extends View {
 			if (++_pos == arr.length) _pos = 0;
 			_undoCount--;
 			return true;
+		}
+
+		public EditAction getLastAction() {
+			if (_undoCount >= arr.length) return null;
+			int pp = _pos;
+			if (pp == 0) pp = arr.length;
+			return arr[pp - 1];
+		}
+
+		public void setLastAction(EditAction action) {
+			if (_undoCount >= arr.length) return;
+			int pp = _pos;
+			if (pp == 0) pp = arr.length;
+			arr[pp - 1] = action;
 		}
 	}
 }
