@@ -14,7 +14,9 @@ import android.util.TypedValue;
 import android.view.*;
 import android.view.inputmethod.*;
 import android.widget.OverScroller;
+import android.widget.TextView;
 import com.xsjiong.vedit.scheme.VEditScheme;
+import com.xsjiong.vedit.scheme.VEditSchemeDark;
 import com.xsjiong.vedit.scheme.VEditSchemeLight;
 import com.xsjiong.vlexer.VJavaLexer;
 import com.xsjiong.vlexer.VLexer;
@@ -75,7 +77,7 @@ public class VEdit extends View {
 	private InputMethodManager _IMM;
 	private long LastClickTime = 0, LastInsertCharTime = 0;
 	private int _ComposingStart = -1;
-	private VEditScheme _Scheme = new VEditSchemeLight();
+	private VEditScheme _Scheme = VEditSchemeDark.getInstance();
 	private VLexer _Lexer = new VJavaLexer();
 	private GlassCursor CURSOR = new GlassCursor(this);
 	private float _CursorHorizonOffset;
@@ -123,8 +125,8 @@ public class VEdit extends View {
 		E[1] = 0;
 		E[2] = 1; // 来自我自己把全部删了之后的E信息
 		_TextLength = 0;
+		applyColorScheme();
 	}
-
 
 	// ------------------
 	// -----Methods------
@@ -249,6 +251,7 @@ public class VEdit extends View {
 	public void setColorScheme(VEditScheme scheme) {
 		this._Scheme = scheme;
 		CURSOR.setHeight(TextHeight);
+		applyColorScheme();
 		invalidate();
 	}
 
@@ -525,6 +528,7 @@ public class VEdit extends View {
 
 	public void makeLineVisible(int line) {
 		float y = LineHeight * line - LineHeight;
+		Log.i(T, getScrollY() + " " + y);
 		if (getScrollY() > y) {
 			scrollTo(getScrollX(), (int) y);
 			postInvalidate();
@@ -744,7 +748,8 @@ public class VEdit extends View {
 		int st, en;
 		for (st = pos; st >= 0 && isSelectableChar(S[st]); st--) ;
 		for (en = pos + 1; en < _TextLength && isSelectableChar(S[en]); en++) ;
-		if (st + 1 == en) return;
+		if (st + 1 == en) st--;
+		if (S[en - 1] == '\n') return;
 		setSelectionRange(st + 1, en);
 	}
 
@@ -799,7 +804,7 @@ public class VEdit extends View {
 	protected void onSizeChanged(int w, int h, int oldw, int oldh) {
 		super.onSizeChanged(w, h, oldw, oldh);
 		if ((!isRangeSelecting()) && h < oldh)
-			makeLineVisible(_CursorLine);
+			makeCursorVisible(_CursorLine, _CursorColumn);
 	}
 
 	@Override
@@ -1066,6 +1071,11 @@ public class VEdit extends View {
 	// -----Private Methods-----
 	// -------------------------
 
+	private void applyColorScheme() {
+		setBackgroundColor(_Scheme.getBackgroundColor());
+		LineNumberPaint.setColor(_Scheme.getLineNumberColor());
+	}
+
 	private byte getDraggingCursor(float x, float y) {
 		final float ori = x;
 		x -= _ContentLeftPadding;
@@ -1155,21 +1165,18 @@ public class VEdit extends View {
 	}
 
 	private void onClick(float x, float y) {
-		if (!_Editable) return;
 		long time = System.currentTimeMillis();
 		boolean dc = time - LastClickTime <= DOUBLE_CLICK_INTERVAL;
 		LastClickTime = time;
 		int[] nc = getCursorByPosition(x, y);
-		finishSelecting();
-		if (dc) expandSelectionFrom(E[nc[0]] + nc[1]);
 		_CursorLine = nc[0];
 		_CursorColumn = nc[1];
-		makeCursorVisible(_CursorLine, _CursorColumn);
 		_ComposingStart = -1;
+		if (dc) expandSelectionFrom(E[nc[0]] + nc[1]);
+		else finishSelecting();
 		if (_IMM != null) {
 			_IMM.viewClicked(this);
 			_IMM.showSoftInput(this, 0);
-			onSelectionUpdate();
 //			_IMM.restartInput(this);
 		}
 		postInvalidate();
@@ -1558,8 +1565,10 @@ public class VEdit extends View {
 					break;
 			}
 			if (cur == null) return false;
-			if (x < 0 || x >= cur.getWidth() || y < 0 || y >= cur.getHeight()) return false;
-			return cur.getPixel((int) (x + 0.5), (int) (y + 0.5)) != Color.TRANSPARENT;
+			int nx = (int) (x + 0.5);
+			int ny = (int) (y + 0.5);
+			if (nx < 0 || nx >= cur.getWidth() || ny < 0 || ny >= cur.getHeight()) return false;
+			return cur.getPixel(nx, ny) != Color.TRANSPARENT;
 		}
 
 		private static void tryRecycle(Bitmap bitmap) {

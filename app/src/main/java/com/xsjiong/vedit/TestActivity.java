@@ -10,8 +10,9 @@ import android.util.TypedValue;
 import android.view.Menu;
 import android.view.MenuItem;
 import android.widget.LinearLayout;
+import com.xsjiong.vedit.scheme.VEditSchemeDark;
 
-public class MainActivity extends Activity {
+public class TestActivity extends Activity {
 	private LinearLayout Container;
 	private VEdit Content;
 
@@ -21,9 +22,9 @@ public class MainActivity extends Activity {
 		Container = new LinearLayout(this);
 		Container.setOrientation(LinearLayout.HORIZONTAL);
 		Content = new VEdit(this);
+		Content.setColorScheme(VEditSchemeDark.getInstance());
 		Content.setTypeface(Typeface.createFromAsset(getAssets(), "FiraCode-Medium.ttf"));
 		Content.setTextSize(TypedValue.COMPLEX_UNIT_SP, 14);
-		Content.setBackgroundColor(Color.WHITE);
 		Container.addView(Content, -1, -1);
 		setContentView(Container);
 		String T = "Load Failed";
@@ -49,16 +50,20 @@ public class MainActivity extends Activity {
 
 	@Override
 	public boolean onCreateOptionsMenu(Menu menu) {
-		menu.add("undo");
-		menu.add("redo");
+		menu.add(0, 0, 0, "撤销");
+		menu.add(0, 0, 1, "重做");
 		return super.onCreateOptionsMenu(menu);
 	}
 
 	@Override
 	public boolean onOptionsItemSelected(MenuItem item) {
-		switch (item.getTitle().toString()) {
-			case "undo":Content.undo();break;
-			case "redo":Content.redo();break;
+		switch (item.getOrder()) {
+			case 0:
+				Content.undo();
+				break;
+			case 1:
+				Content.redo();
+				break;
 		}
 		return super.onOptionsItemSelected(item);
 	}

@@ -4,7 +4,7 @@ import com.xsjiong.vlexer.VLexer;
 
 public abstract class VEditScheme {
 	protected int[] C = new int[VLexer.TYPE_COUNT];
-	protected int _SplitLine, _Selection, _CursorLine, _Cursor, _CursorGlass;
+	protected int _SplitLine, _Selection, _CursorLine, _Cursor, _CursorGlass, _BackgroundColor, _LineNumberColor;
 
 	public void setTypeColor(short type, int color) {
 		C[type] = color;
@@ -52,5 +52,21 @@ public abstract class VEditScheme {
 
 	public int getCursorGlassColor() {
 		return _CursorGlass;
+	}
+
+	public void setBackgroundColor(int color) {
+		_BackgroundColor = color;
+	}
+
+	public int getBackgroundColor() {
+		return _BackgroundColor;
+	}
+
+	public void setLineNumberColor(int color) {
+		_LineNumberColor = color;
+	}
+
+	public int getLineNumberColor() {
+		return _LineNumberColor;
 	}
 }
