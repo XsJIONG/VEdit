@@ -52,6 +52,10 @@ public abstract class VLexer {
 	// 传入的是修改前光标的位置
 	public final void onInsertChars(int pos, int len) {
 		if (len == 0) return;
+		if (L - len == 0) {
+			parseAll();
+			return;
+		}
 		int part = findPart(pos);
 		if (pos == DS[part]) part--;
 		if (part == 0) part = 1;
@@ -74,6 +78,7 @@ public abstract class VLexer {
 //		while (this.P < en) {
 		while (true) {
 			type = getNext();
+			if (type == TYPE_EOF) break;
 			if (++DS[0] == D.length)
 				expandDArray();
 			D[DS[0]] = type;
@@ -120,6 +125,7 @@ public abstract class VLexer {
 //		while (this.P < en) {
 		while (true) {
 			type = getNext();
+			if (type == TYPE_EOF) break;
 			if (++DS[0] == D.length)
 				expandDArray();
 			D[DS[0]] = type;
@@ -235,8 +241,12 @@ public abstract class VLexer {
 
 	public final void setText(char[] cs) {
 		this.S = cs;
-		this.P = this.DS[0] = 0;
 		this.L = cs.length;
+		parseAll();
+	}
+
+	private void parseAll() {
+		this.P = this.DS[0] = 0;
 		short type;
 		while ((type = getNext()) != TYPE_EOF) {
 			if (++DS[0] == D.length)
@@ -247,7 +257,7 @@ public abstract class VLexer {
 		}
 	}
 
-	private short getNext() {
+	protected short getNext() {
 		ReadSpaces();
 		if (P == L) return TYPE_EOF;
 		ST = P;

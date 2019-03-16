@@ -1,6 +1,8 @@
 package com.xsjiong.vedit;
 
 import android.app.Activity;
+import android.app.AlertDialog;
+import android.content.DialogInterface;
 import android.graphics.Color;
 import android.graphics.Typeface;
 import android.os.Build;
@@ -11,6 +13,10 @@ import android.view.Menu;
 import android.view.MenuItem;
 import android.widget.LinearLayout;
 import com.xsjiong.vedit.scheme.VEditSchemeDark;
+import com.xsjiong.vedit.scheme.VEditSchemeLight;
+import com.xsjiong.vlexer.VJavaLexer;
+import com.xsjiong.vlexer.VJavaScriptLexer;
+import com.xsjiong.vlexer.VNullLexer;
 
 public class TestActivity extends Activity {
 	private LinearLayout Container;
@@ -52,6 +58,9 @@ public class TestActivity extends Activity {
 	public boolean onCreateOptionsMenu(Menu menu) {
 		menu.add(0, 0, 0, "撤销");
 		menu.add(0, 0, 1, "重做");
+		menu.add(0, 0, 2, "切换主题");
+		menu.add(0, 0, 3, "隐藏行号");
+		menu.add(0, 0, 4, "切换高亮");
 		return super.onCreateOptionsMenu(menu);
 	}
 
@@ -63,6 +72,39 @@ public class TestActivity extends Activity {
 				break;
 			case 1:
 				Content.redo();
+				break;
+			case 2:
+				if (Content.getColorScheme() instanceof VEditSchemeLight)
+					Content.setColorScheme(VEditSchemeDark.getInstance());
+				else
+					Content.setColorScheme(VEditSchemeLight.getInstance());
+				break;
+			case 3:
+				if (Content.isShowLineNumber()) {
+					Content.setShowLineNumber(false);
+					item.setTitle("显示行号");
+				} else {
+					Content.setShowLineNumber(true);
+					item.setTitle("隐藏行号");
+				}
+				break;
+			case 4:
+				new AlertDialog.Builder(this).setTitle("切换高亮").setItems(new String[] {"Java", "JavaScript", "无"}, new DialogInterface.OnClickListener() {
+					@Override
+					public void onClick(DialogInterface dialog, int which) {
+						switch (which) {
+							case 0:
+								Content.setLexer(new VJavaLexer());
+								break;
+							case 1:
+								Content.setLexer(new VJavaScriptLexer());
+								break;
+							case 2:
+								Content.setLexer(new VNullLexer());
+								break;
+						}
+					}
+				}).setCancelable(true).setPositiveButton("取消", null).show();
 				break;
 		}
 		return super.onOptionsItemSelected(item);

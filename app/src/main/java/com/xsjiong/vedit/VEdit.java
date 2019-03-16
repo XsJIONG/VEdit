@@ -14,10 +14,8 @@ import android.util.TypedValue;
 import android.view.*;
 import android.view.inputmethod.*;
 import android.widget.OverScroller;
-import android.widget.TextView;
 import com.xsjiong.vedit.scheme.VEditScheme;
 import com.xsjiong.vedit.scheme.VEditSchemeDark;
-import com.xsjiong.vedit.scheme.VEditSchemeLight;
 import com.xsjiong.vlexer.VJavaLexer;
 import com.xsjiong.vlexer.VLexer;
 
@@ -126,6 +124,7 @@ public class VEdit extends View {
 		E[2] = 1; // 来自我自己把全部删了之后的E信息
 		_TextLength = 0;
 		applyColorScheme();
+		setVerticalScrollBarEnabled(true);
 	}
 
 	// ------------------
@@ -146,6 +145,7 @@ public class VEdit extends View {
 		if (_Lexer != null && _Lexer.getClass() == lexer.getClass()) return;
 		_Lexer = lexer;
 		_Lexer.setText(S);
+		invalidate();
 	}
 
 	public void loadURL(String url) throws IOException {
@@ -335,6 +335,11 @@ public class VEdit extends View {
 	}
 
 	public void setSelectionRange(int st, int en) {
+		if (st > en) {
+			int tmp = st;
+			st = en;
+			en = tmp;
+		}
 		_SStart = st;
 		_SEnd = en;
 		onSelectionUpdate();
@@ -528,7 +533,6 @@ public class VEdit extends View {
 
 	public void makeLineVisible(int line) {
 		float y = LineHeight * line - LineHeight;
-		Log.i(T, getScrollY() + " " + y);
 		if (getScrollY() > y) {
 			scrollTo(getScrollX(), (int) y);
 			postInvalidate();
@@ -729,7 +733,16 @@ public class VEdit extends View {
 		return ret;
 	}
 
-	public void commitText(char[] cs) {
+	public void commitChar(char ch) {
+		_ComposingStart = -1;
+		if (isRangeSelecting()) {
+			int ss = _SStart;
+			finishSelecting();
+			replace(ss, _SEnd, new char[] {ch});
+		} else insertChar(ch);
+	}
+
+	public void commitChars(char[] cs) {
 		_ComposingStart = -1;
 		if (isRangeSelecting()) {
 			int ss = _SStart;
@@ -744,11 +757,10 @@ public class VEdit extends View {
 	}
 
 	public void expandSelectionFrom(int pos) {
-		if (pos == _TextLength - 1) return;
-		int st, en;
-		for (st = pos; st >= 0 && isSelectableChar(S[st]); st--) ;
-		for (en = pos + 1; en < _TextLength && isSelectableChar(S[en]); en++) ;
-		if (st + 1 == en) st--;
+		if (pos == _TextLength) pos--;
+		int st = pos, en = pos;
+		for (; st >= 0 && isSelectableChar(S[st]); st--) ;
+		for (; en < _TextLength && isSelectableChar(S[en]); en++) ;
 		if (S[en - 1] == '\n') return;
 		setSelectionRange(st + 1, en);
 	}
@@ -792,6 +804,11 @@ public class VEdit extends View {
 	// --------------------------
 	// -----Override Methods-----
 	// --------------------------
+
+	@Override
+	public boolean onKeyDown(int keyCode, KeyEvent event) {
+		return processEvent(event);
+	}
 
 	@Override
 	protected void onDetachedFromWindow() {
@@ -987,6 +1004,7 @@ public class VEdit extends View {
 		int parseTot = _Lexer.findPart(E[line]);
 		int parseTarget = _Lexer.getPartStart(parseTot);
 		float SStartLineEnd = -1;
+//		Log.i(T, _Lexer.getPartCount() + " " + _Lexer.getTypeName(_Lexer.getPartType(_Lexer.getPartCount())));
 		LineDraw:
 		for (; line < E[0]; line++) {
 			if (_ShowLineNumber)
@@ -1009,6 +1027,7 @@ public class VEdit extends View {
 			if (parseTot <= _Lexer.getPartCount()) {
 				while (i >= parseTarget && parseTot <= _Lexer.getPartCount())
 					parseTarget = _Lexer.getPartStart(++parseTot);
+				if (parseTot == 0) break;
 				ContentPaint.setColor(_Scheme.getTypeColor(_Lexer.getPartType(parseTot - 1)));
 			}
 			tot = 0;
@@ -1123,12 +1142,15 @@ public class VEdit extends View {
 	}
 
 	private boolean processEvent(KeyEvent event) {
-		if (event.getAction() != KeyEvent.ACTION_UP) return false;
+		if (event.getAction() != KeyEvent.ACTION_DOWN) return false;
 		if (event.isPrintingKey()) {
-			insertChar((char) event.getUnicodeChar(event.getMetaState()));
+			commitChar((char) event.getUnicodeChar(event.getMetaState()));
 			return true;
 		}
 		switch (event.getKeyCode()) {
+			case KeyEvent.KEYCODE_SPACE:
+				commitChar(' ');
+				break;
 			case KeyEvent.KEYCODE_DEL:
 				if (isRangeSelecting())
 					deleteSelecting();
@@ -1136,7 +1158,7 @@ public class VEdit extends View {
 					deleteChar();
 				break;
 			case KeyEvent.KEYCODE_ENTER:
-				insertChar('\n');
+				commitChar('\n');
 				break;
 			default:
 				return false;
@@ -1329,7 +1351,7 @@ public class VEdit extends View {
 		public boolean commitText(CharSequence text, int newCursorPosition) {
 			char[] cs = new char[text.length()];
 			for (int i = 0; i < cs.length; i++) cs[i] = text.charAt(i);
-			Q.commitText(cs);
+			Q.commitChars(cs);
 			return true;
 		}
 
@@ -1414,7 +1436,7 @@ public class VEdit extends View {
 						CharSequence s = data.getItemAt(0).coerceToText(Q.getContext());
 						char[] cs = new char[s.length()];
 						for (int i = 0; i < cs.length; i++) cs[i] = s.charAt(i);
-						Q.commitText(cs);
+						Q.commitChars(cs);
 					}
 					break;
 				case android.R.id.selectAll:
