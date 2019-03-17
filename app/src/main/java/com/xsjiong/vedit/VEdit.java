@@ -6,6 +6,7 @@ import android.content.Context;
 import android.graphics.*;
 import android.os.Bundle;
 import android.os.Handler;
+import android.text.Editable;
 import android.text.InputType;
 import android.text.TextPaint;
 import android.util.AttributeSet;
@@ -38,7 +39,6 @@ public class VEdit extends View {
 	public static final int EMPTY_CHAR_WIDTH = 10;
 	public static final int SCROLL_TO_CURSOR_EXTRA = 20;
 	public static final short CHAR_SPACE = 32, CHAR_TAB = 9;
-	public static final byte CURSOR_NONE = -1, CURSOR_NORMAL = 0, CURSOR_LEFT = 1, CURSOR_RIGHT = 2;
 	public static final int EDIT_ACTION_STACK_SIZE = 64;
 
 
@@ -77,12 +77,13 @@ public class VEdit extends View {
 	private int _ComposingStart = -1;
 	private VEditScheme _Scheme = VEditSchemeDark.getInstance();
 	private VLexer _Lexer = new VJavaLexer();
-	private GlassCursor CURSOR = new GlassCursor(this);
+	private Cursor _Cursor = new GlassCursor(this);
 	private float _CursorHorizonOffset;
 	private float _SStartHorizonOffset, _SEndHorizonOffset;
 	private int _SStartLine, _SEndLine;
 	private float LineHeight;
-	private byte _DraggingCursor = CURSOR_NONE;
+	private byte _DraggingCursor = Cursor.TYPE_NONE;
+	private boolean _ShowingCursor;
 	private EditActionStack _EditActionStack = new EditActionStack(this, EDIT_ACTION_STACK_SIZE);
 
 	// -----------------------
@@ -130,6 +131,44 @@ public class VEdit extends View {
 	// ------------------
 	// -----Methods------
 	// ------------------
+
+	public void selectAll() {
+		setSelectionRange(0, _TextLength);
+	}
+
+	public boolean paste() {
+		ClipData data = getClipboardManager().getPrimaryClip();
+		if (data != null && data.getItemCount() > 0) {
+			CharSequence s = data.getItemAt(0).coerceToText(getContext());
+			char[] cs = new char[s.length()];
+			for (int i = 0; i < cs.length; i++) cs[i] = s.charAt(i);
+			commitChars(cs);
+			return true;
+		}
+		return false;
+	}
+
+	public boolean cut() {
+		if (isRangeSelecting()) {
+			ClipboardManager manager = getClipboardManager();
+			manager.setPrimaryClip(ClipData.newPlainText(null, getSelectedText()));
+			int line = findLine(_SEnd);
+			deleteChars(line, _SEnd - E[line], _SEnd - _SStart);
+			finishSelecting();
+			return true;
+		}
+		return false;
+	}
+
+	public boolean copy() {
+		if (isRangeSelecting()) {
+			ClipboardManager manager = getClipboardManager();
+			manager.setPrimaryClip(ClipData.newPlainText(null, getSelectedText()));
+			finishSelecting();
+			return true;
+		}
+		return false;
+	}
 
 	public void deleteSelecting() {
 		int line = findLine(_SEnd);
@@ -250,7 +289,7 @@ public class VEdit extends View {
 
 	public void setColorScheme(VEditScheme scheme) {
 		this._Scheme = scheme;
-		CURSOR.setHeight(TextHeight);
+		_Cursor.setHeight(TextHeight);
 		applyColorScheme();
 		invalidate();
 	}
@@ -761,7 +800,7 @@ public class VEdit extends View {
 		int st = pos, en = pos;
 		for (; st >= 0 && isSelectableChar(S[st]); st--) ;
 		for (; en < _TextLength && isSelectableChar(S[en]); en++) ;
-		if (S[en - 1] == '\n') return;
+		if (en != _TextLength && S[en] == '\n') return;
 		setSelectionRange(st + 1, en);
 	}
 
@@ -805,6 +844,12 @@ public class VEdit extends View {
 	// -----Override Methods-----
 	// --------------------------
 
+
+	@Override
+	public boolean onKeyShortcut(int keyCode, KeyEvent event) {
+		return processEvent(event);
+	}
+
 	@Override
 	public boolean onKeyDown(int keyCode, KeyEvent event) {
 		return processEvent(event);
@@ -813,8 +858,8 @@ public class VEdit extends View {
 	@Override
 	protected void onDetachedFromWindow() {
 		super.onDetachedFromWindow();
-		_DraggingCursor = CURSOR_NONE;
-		CURSOR.recycle();
+		_DraggingCursor = Cursor.TYPE_NONE;
+		_Cursor.recycle();
 	}
 
 	@Override
@@ -838,7 +883,7 @@ public class VEdit extends View {
 				_stX = _lastX = event.getX();
 				_stY = _lastY = event.getY();
 				_DraggingCursor = getDraggingCursor(_stX + getScrollX(), _stY + getScrollY());
-				if (_DraggingCursor != CURSOR_NONE) {
+				if (_DraggingCursor != Cursor.TYPE_NONE) {
 					_stX += getScrollX();
 					_stY += getScrollY();
 				}
@@ -849,20 +894,20 @@ public class VEdit extends View {
 				return true;
 			case MotionEvent.ACTION_MOVE:
 				float x = event.getX(), y = event.getY();
-				if (_DraggingCursor != CURSOR_NONE) {
+				if (_DraggingCursor != Cursor.TYPE_NONE) {
 					int[] nc = getCursorByPosition(x + getScrollX() - _stX + _lastX, y + getScrollY() - _stY + _lastY);
 					switch (_DraggingCursor) {
-						case CURSOR_NORMAL: {
+						case Cursor.TYPE_NORMAL: {
 							moveCursor(nc[0], nc[1]);
 							return true;
 						}
-						case CURSOR_LEFT: {
-							if (setSelectionStart(E[nc[0]] + nc[1])) _DraggingCursor = CURSOR_RIGHT;
+						case Cursor.TYPE_LEFT: {
+							if (setSelectionStart(E[nc[0]] + nc[1])) _DraggingCursor = Cursor.TYPE_RIGHT;
 							makeCursorVisible(nc[0], nc[1]);
 							return true;
 						}
-						case CURSOR_RIGHT: {
-							if (setSelectionEnd(E[nc[0]] + nc[1])) _DraggingCursor = CURSOR_LEFT;
+						case Cursor.TYPE_RIGHT: {
+							if (setSelectionEnd(E[nc[0]] + nc[1])) _DraggingCursor = Cursor.TYPE_LEFT;
 							makeCursorVisible(nc[0], nc[1]);
 							return true;
 						}
@@ -903,8 +948,8 @@ public class VEdit extends View {
 				return true;
 			case MotionEvent.ACTION_CANCEL:
 			case MotionEvent.ACTION_UP:
-				if (_DraggingCursor != CURSOR_NONE) {
-					_DraggingCursor = CURSOR_NONE;
+				if (_DraggingCursor != Cursor.TYPE_NONE) {
+					_DraggingCursor = Cursor.TYPE_NONE;
 					return true;
 				}
 				SpeedCalc.computeCurrentVelocity(_flingFactor);
@@ -1064,7 +1109,7 @@ public class VEdit extends View {
 			ColorPaint.setStrokeWidth(_CursorWidth);
 			float sty = LineHeight * _CursorLine;
 			canvas.drawLine(xo + _CursorHorizonOffset, sty - LineHeight, xo + _CursorHorizonOffset, sty, ColorPaint);
-			CURSOR.draw(canvas, xo + _CursorHorizonOffset, sty, CURSOR_NORMAL);
+			_Cursor.draw(canvas, xo + _CursorHorizonOffset, sty, Cursor.TYPE_NORMAL);
 		} else if (showSelecting) {
 			float sty = LineHeight * _SStartLine;
 			if (_SStartLine == _SEndLine) {
@@ -1077,8 +1122,8 @@ public class VEdit extends View {
 					canvas.drawRect(xo + _SStartHorizonOffset, sty - LineHeight, SStartLineEnd, sty, ColorPaint);
 				canvas.drawRect(xo, eny - LineHeight, xo + _SEndHorizonOffset, eny, ColorPaint);
 			}
-			CURSOR.draw(canvas, xo + _SStartHorizonOffset, sty, CURSOR_LEFT);
-			CURSOR.draw(canvas, xo + _SEndHorizonOffset, LineHeight * _SEndLine, CURSOR_RIGHT);
+			_Cursor.draw(canvas, xo + _SStartHorizonOffset, sty, Cursor.TYPE_LEFT);
+			_Cursor.draw(canvas, xo + _SEndHorizonOffset, LineHeight * _SEndLine, Cursor.TYPE_RIGHT);
 		}
 		if (G.LOG_TIME) {
 			st = System.currentTimeMillis() - st;
@@ -1100,22 +1145,22 @@ public class VEdit extends View {
 		x -= _ContentLeftPadding;
 		if (_ShowLineNumber) x -= (LineNumberWidth + LINENUM_SPLIT_WIDTH);
 		if (isRangeSelecting()) {
-			if (CURSOR.isTouched(x - _SStartHorizonOffset, y - LineHeight * _SStartLine, CURSOR_LEFT)) {
+			if (_Cursor.isTouched(x - _SStartHorizonOffset, y - LineHeight * _SStartLine, Cursor.TYPE_LEFT)) {
 				_lastX = ori;
 				_lastY = LineHeight * _SStartLine - LineHeight * 0.5f;
-				return CURSOR_LEFT;
+				return Cursor.TYPE_LEFT;
 			}
-			if (CURSOR.isTouched(x - _SEndHorizonOffset, y - LineHeight * _SEndLine, CURSOR_RIGHT)) {
+			if (_Cursor.isTouched(x - _SEndHorizonOffset, y - LineHeight * _SEndLine, Cursor.TYPE_RIGHT)) {
 				_lastX = ori;
 				_lastY = LineHeight * _SEndLine - LineHeight * 0.5f;
-				return CURSOR_RIGHT;
+				return Cursor.TYPE_RIGHT;
 			}
-		} else if (CURSOR.isTouched(x - _CursorHorizonOffset, y - LineHeight * _CursorLine, CURSOR_NORMAL)) {
+		} else if (_Cursor.isTouched(x - _CursorHorizonOffset, y - LineHeight * _CursorLine, Cursor.TYPE_NORMAL)) {
 			_lastX = ori;
 			_lastY = LineHeight * _CursorLine - LineHeight * 0.5f;
-			return CURSOR_NORMAL;
+			return Cursor.TYPE_NORMAL;
 		}
-		return CURSOR_NONE;
+		return Cursor.TYPE_NONE;
 	}
 
 	private void deleteSurrounding(int beforeLength, int afterLength) {
@@ -1143,6 +1188,24 @@ public class VEdit extends View {
 
 	private boolean processEvent(KeyEvent event) {
 		if (event.getAction() != KeyEvent.ACTION_DOWN) return false;
+		Log.i(T, event.isCtrlPressed() + " " + event.toString());
+		if (event.isCtrlPressed()) {
+			switch (event.getKeyCode()) {
+				case KeyEvent.KEYCODE_C:
+					copy();
+					break;
+				case KeyEvent.KEYCODE_X:
+					cut();
+					break;
+				case KeyEvent.KEYCODE_V:
+					paste();
+					break;
+				case KeyEvent.KEYCODE_A:
+					selectAll();
+					break;
+			}
+			return true;
+		}
 		if (event.isPrintingKey()) {
 			commitChar((char) event.getUnicodeChar(event.getMetaState()));
 			return true;
@@ -1196,7 +1259,7 @@ public class VEdit extends View {
 		_ComposingStart = -1;
 		if (dc) expandSelectionFrom(E[nc[0]] + nc[1]);
 		else finishSelecting();
-		if (_IMM != null) {
+		if (_Editable && _IMM != null) {
 			_IMM.viewClicked(this);
 			_IMM.showSoftInput(this, 0);
 //			_IMM.restartInput(this);
@@ -1208,7 +1271,7 @@ public class VEdit extends View {
 		YOffset = -ContentPaint.ascent();
 		TextHeight = ContentPaint.descent() + YOffset;
 		LineHeight = TextHeight + _LinePaddingTop + _LinePaddingBottom;
-		CURSOR.setHeight(TextHeight);
+		_Cursor.setHeight(TextHeight);
 		clearCharWidthCache();
 		onLineChange();
 		requestLayout();
@@ -1249,7 +1312,7 @@ public class VEdit extends View {
 			off = E[_SEndLine = findLine(_SEnd)];
 			for (; off < _SEnd; off++) _SEndHorizonOffset += getCharWidth(S[off]);
 		}
-		if (_IMM != null) {
+		if (_Editable && _IMM != null) {
 			int sst, sen;
 			CursorAnchorInfo.Builder builder = new CursorAnchorInfo.Builder().setMatrix(null);
 			if (isRangeSelecting()) {
@@ -1414,33 +1477,17 @@ public class VEdit extends View {
 		public boolean performContextMenuAction(int id) {
 			switch (id) {
 				case android.R.id.copy: {
-					if (Q.isRangeSelecting()) {
-						ClipboardManager manager = Q.getClipboardManager();
-						manager.setPrimaryClip(ClipData.newPlainText(null, Q.getSelectedText()));
-						Q.finishSelecting();
-					}
+					Q.copy();
 					break;
 				}
 				case android.R.id.cut:
-					if (Q.isRangeSelecting()) {
-						ClipboardManager manager = Q.getClipboardManager();
-						manager.setPrimaryClip(ClipData.newPlainText(null, Q.getSelectedText()));
-						int line = Q.findLine(Q._SEnd);
-						Q.deleteChars(line, Q._SEnd - Q.E[line], Q._SEnd - Q._SStart);
-						Q.finishSelecting();
-					}
+					Q.cut();
 					break;
 				case android.R.id.paste:
-					ClipData data = Q.getClipboardManager().getPrimaryClip();
-					if (data != null && data.getItemCount() > 0) {
-						CharSequence s = data.getItemAt(0).coerceToText(Q.getContext());
-						char[] cs = new char[s.length()];
-						for (int i = 0; i < cs.length; i++) cs[i] = s.charAt(i);
-						Q.commitChars(cs);
-					}
+					Q.paste();
 					break;
 				case android.R.id.selectAll:
-					Q.setSelectionRange(0, Q._TextLength);
+					Q.selectAll();
 					break;
 			}
 			return true;
@@ -1492,18 +1539,36 @@ public class VEdit extends View {
 		}
 	}
 
-	private static class GlassCursor {
+	public static abstract class Cursor {
+		public static final byte TYPE_NONE = -1, TYPE_NORMAL = 0, TYPE_LEFT = 1, TYPE_RIGHT = 2;
+
+		protected VEdit P;
+
+		public Cursor(VEdit parent) {
+			this.P = parent;
+		}
+
+		public abstract void setHeight(float height);
+
+		public abstract void draw(Canvas canvas, float x, float y, byte type);
+
+		public abstract boolean isTouched(float x, float y, byte type);
+
+		public abstract void recycle();
+	}
+
+	public static class GlassCursor extends Cursor {
 		private float h, radius;
 		private Paint mp = new Paint();
-		private VEdit parent;
 		private Bitmap c0, c1, c2;
 
 		public GlassCursor(VEdit parent) {
-			this.parent = parent;
+			super(parent);
 			mp.setStyle(Paint.Style.FILL);
 			mp.setAntiAlias(true);
 		}
 
+		@Override
 		public void setHeight(float height) {
 			h = height * 1.5f;
 			radius = h * 0.4f;
@@ -1523,36 +1588,37 @@ public class VEdit extends View {
 			c2 = Bitmap.createBitmap(ddd, ddd, Bitmap.Config.ARGB_8888);
 			Canvas canvas = new Canvas(c0);
 			canvas.translate(radius, 0);
-			mp.setColor(parent._Scheme.getCursorColor());
+			mp.setColor(P._Scheme.getCursorColor());
 			canvas.drawPath(path, mp);
 			canvas.drawCircle(0, h - radius, radius, mp);
 			mp.setXfermode(new PorterDuffXfermode(PorterDuff.Mode.CLEAR));
 			canvas.drawCircle(0, h - radius, gradius, mp);
 			mp.setXfermode(null);
-			mp.setColor(parent._Scheme.getCursorGlassColor());
+			mp.setColor(P._Scheme.getCursorGlassColor());
 			canvas.drawCircle(0, h - radius, gradius, mp);
 
 			canvas = new Canvas(c1);
-			mp.setColor(parent._Scheme.getCursorColor());
+			mp.setColor(P._Scheme.getCursorColor());
 			canvas.drawCircle(radius, radius, radius, mp);
 			canvas.drawRect(radius, 0, radius * 2, radius, mp);
 			mp.setXfermode(new PorterDuffXfermode(PorterDuff.Mode.CLEAR));
 			canvas.drawCircle(radius, radius, gradius, mp);
 			mp.setXfermode(null);
-			mp.setColor(parent._Scheme.getCursorGlassColor());
+			mp.setColor(P._Scheme.getCursorGlassColor());
 			canvas.drawCircle(radius, radius, gradius, mp);
 
 			canvas = new Canvas(c2);
-			mp.setColor(parent._Scheme.getCursorColor());
+			mp.setColor(P._Scheme.getCursorColor());
 			canvas.drawCircle(radius, radius, radius, mp);
 			canvas.drawRect(0, 0, radius, radius, mp);
 			mp.setXfermode(new PorterDuffXfermode(PorterDuff.Mode.CLEAR));
 			canvas.drawCircle(radius, radius, gradius, mp);
 			mp.setXfermode(null);
-			mp.setColor(parent._Scheme.getCursorGlassColor());
+			mp.setColor(P._Scheme.getCursorGlassColor());
 			canvas.drawCircle(radius, radius, gradius, mp);
 		}
 
+		@Override
 		public void draw(Canvas canvas, float x, float y, byte type) {
 			if (isRecycled()) setHeight(h / 1.5f);
 			canvas.translate(x, y);
@@ -1570,6 +1636,7 @@ public class VEdit extends View {
 			canvas.translate(-x, -y);
 		}
 
+		@Override
 		public boolean isTouched(float x, float y, byte type) {
 			if (isRecycled()) setHeight(h / 1.5f);
 			Bitmap cur = null;
@@ -1601,6 +1668,7 @@ public class VEdit extends View {
 			return c0 == null;
 		}
 
+		@Override
 		public void recycle() {
 			tryRecycle(c0);
 			tryRecycle(c1);

@@ -32,6 +32,7 @@ public class TestActivity extends Activity {
 		Content.setTypeface(Typeface.createFromAsset(getAssets(), "FiraCode-Medium.ttf"));
 		Content.setTextSize(TypedValue.COMPLEX_UNIT_SP, 14);
 		Container.addView(Content, -1, -1);
+		Content.setEditable(false);
 		setContentView(Container);
 		String T = "Load Failed";
 		try {
