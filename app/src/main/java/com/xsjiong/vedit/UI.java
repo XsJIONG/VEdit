@@ -13,6 +13,8 @@ import android.graphics.drawable.Drawable;
 import android.os.Build;
 import android.os.Handler;
 import android.os.Looper;
+import android.support.design.widget.Snackbar;
+import android.view.View;
 import android.view.Window;
 import android.view.WindowManager;
 
@@ -34,8 +36,11 @@ public class UI {
 		}
 	}
 
+	private static float DP_SCALE = -1;
+
 	public static final int dp2px(int dp) {
-		return (int) (Resources.getSystem().getDisplayMetrics().density * dp + 0.5f);
+		if (DP_SCALE == -1) DP_SCALE = Resources.getSystem().getDisplayMetrics().density;
+		return (int) (DP_SCALE * dp + 0.5f);
 	}
 
 	public static void onUI(Runnable action) {
@@ -43,7 +48,7 @@ public class UI {
 		else new Handler(Looper.getMainLooper()).post(action);
 	}
 
-	public static void preventDismiss(AlertDialog dialog) {
+	public static void preventDismiss(Dialog dialog) {
 		try {
 			Field field = Dialog.class.getDeclaredField("mShowing");
 			field.setAccessible(true);
@@ -53,7 +58,7 @@ public class UI {
 		}
 	}
 
-	public static void forceDismiss(AlertDialog dialog) {
+	public static void forceDismiss(Dialog dialog) {
 		try {
 			Field field = Dialog.class.getDeclaredField("mShowing");
 			field.setAccessible(true);
@@ -61,6 +66,12 @@ public class UI {
 		} catch (Throwable e) {
 			Logs.wtf(e);
 		}
+	}
+
+	public static Drawable tintDrawable(Context cx, int d, int color) {
+		Drawable dd = cx.getDrawable(d).mutate();
+		dd.setColorFilter(color, PorterDuff.Mode.SRC_IN);
+		return dd;
 	}
 
 	public static Drawable tintDrawable(Drawable d, int color) {
@@ -89,5 +100,9 @@ public class UI {
 		}).setPositiveButton("确定", null).create();
 		ret.show();
 		return ret;
+	}
+
+	public static void print(View container, CharSequence cs) {
+		Snackbar.make(container, cs, Snackbar.LENGTH_SHORT).show();
 	}
 }

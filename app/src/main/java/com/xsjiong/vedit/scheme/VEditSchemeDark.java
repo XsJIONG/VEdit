@@ -18,6 +18,7 @@ public class VEditSchemeDark extends VEditScheme {
 		setCursorGlassColor(0x44E53935);
 		setBackgroundColor(0xFF37474F);
 		setLineNumberColor(0xFFFFFFFF);
+		setSlideBarColor(0xCC2196F3);
 		C[VLexer.TYPE_IDENTIFIER] = 0xFF00BCD4;
 		C[VLexer.TYPE_KEYWORD] = 0xFF5C6BC0;
 		C[VLexer.TYPE_NUMBER] = 0xFFE91E63;
@@ -40,5 +41,6 @@ public class VEditSchemeDark extends VEditScheme {
 		C[VLexer.TYPE_COMMA] = C[VLexer.TYPE_LEFT_PARENTHESIS];
 		C[VLexer.TYPE_EOF] = 0xFFFFFFFF; // ?????
 		C[VLexer.UNRESOLVED_TYPE] = 0xFFFFFFFF;
+		C[VLexer.TYPE_PREPROCESSOR_COMMAND] = C[VLexer.TYPE_SEMICOLON];
 	}
 }

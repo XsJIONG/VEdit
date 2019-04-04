@@ -1,12 +1,16 @@
 <resources>
 
-	<!--<style name="AppTheme" parent="Theme.AppCompat.Light.DarkActionBar">
+	<style name="AppThemeNoTitle" parent="Theme.AppCompat.Light.NoActionBar">
 		<item name="colorPrimary">@color/colorPrimary</item>
 		<item name="colorPrimaryDark">@color/colorPrimaryDark</item>
 		<item name="colorAccent">@color/colorAccent</item>
-	</style>-->
+	</style>
 
-	<style name="AppTheme" parent="android:Theme.Material.Light"/>
+	<style name="AppTheme" parent="Theme.AppCompat.Light.DarkActionBar">
+		<item name="colorPrimary">@color/colorPrimary</item>
+		<item name="colorPrimaryDark">@color/colorPrimaryDark</item>
+		<item name="colorAccent">@color/colorAccent</item>
+	</style>
 
 	<style name="FullscreenDialog">
 		<item name="android:windowFullscreen">true</item>

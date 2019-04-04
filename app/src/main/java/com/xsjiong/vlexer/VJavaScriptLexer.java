@@ -8,7 +8,7 @@ public class VJavaScriptLexer extends VJavaLexer {
 	public Trie getKeywordTrie() {
 		if (KEYWORD_TRIE == null)
 			KEYWORD_TRIE = Trie.BuildTrie(
-					"break", "case", "continue", "default", "delete", "do", "else", "for", "function", "if", "in", "let", "new", "return", "switch",
+					"break", "case", "continue", "default", "delete", "do", "else", "for", "function", "if", "in", "let", "icon_create", "return", "switch",
 					"this", "typeof", "var", "void", "while", "with", "yield", "catch", "const", "debugger", "finally", "instanceof", "throw", "try"
 			);
 		return KEYWORD_TRIE;
@@ -22,11 +22,12 @@ public class VJavaScriptLexer extends VJavaLexer {
 	}
 
 	@Override
-	public short ProcessSymbol(char c) {
+	public short processSymbol(char c) {
 		if (c == '\'') {
 			// JS的世界里没有char
 			boolean z = false;
 			do {
+				if (S[P] == '\n') return TYPE_STRING;
 				if (P == L) return TYPE_STRING;
 				if (S[P] == '\\')
 					z = !z;
@@ -37,6 +38,8 @@ public class VJavaScriptLexer extends VJavaLexer {
 				++P;
 			} while (true);
 		}
-		return super.ProcessSymbol(c);
+		if (c == '=' && S[P] == '>') // =>
+			return TYPE_OPERATOR;
+		return super.processSymbol(c);
 	}
 }

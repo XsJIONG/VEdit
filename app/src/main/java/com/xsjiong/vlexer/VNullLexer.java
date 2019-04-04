@@ -9,27 +9,14 @@ public class VNullLexer extends VLexer {
 	}
 
 	@Override
-	public Trie getKeywordTrie() {
-		return null;
-	}
-
-	@Override
 	protected boolean isWhitespace(char c) {
 		return false;
 	}
 
-	@Override
-	protected boolean isIdentifierStart(char c) {
-		return false;
+	public VNullLexer() {
 	}
 
-	@Override
-	protected boolean isIdentifierPart(char c) {
-		return false;
-	}
-
-	@Override
-	protected short ProcessSymbol(char c) {
-		return 0;
+	public VNullLexer(char[] cs) {
+		super(cs);
 	}
 }

@@ -40,7 +40,7 @@ public final class Logs {
 					inc.close();
 					in.close();
 				} catch (IOException e) {
-					throw new RuntimeException("Can't copy origin log file(" + Origin.getAbsolutePath() + ") to new one(" + f.getAbsolutePath() + ")", e);
+					throw new RuntimeException("Can't copy origin log file(" + Origin.getAbsolutePath() + ") to icon_create one(" + f.getAbsolutePath() + ")", e);
 				}
 			}
 		}

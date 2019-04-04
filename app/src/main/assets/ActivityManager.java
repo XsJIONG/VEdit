@@ -231,7 +231,7 @@ public class ActivityManager {
      */
     public static final String META_HOME_ALTERNATE = "android.app.home.alternate";
 
-    // NOTE: Before adding a new start result, please reference the defined ranges to ensure the
+    // NOTE: Before adding a icon_create start result, please reference the defined ranges to ensure the
     // result is properly categorized.
 
     /**
@@ -354,7 +354,7 @@ public class ActivityManager {
     public static final int START_SWITCHES_CANCELED = FIRST_START_NON_FATAL_ERROR_CODE;
 
     /**
-     * Result for IActivityManaqer.startActivity: a new activity was attempted to be started
+     * Result for IActivityManaqer.startActivity: a icon_create activity was attempted to be started
      * while in Lock Task Mode.
      * @hide
      */
@@ -362,7 +362,7 @@ public class ActivityManager {
             FIRST_START_NON_FATAL_ERROR_CODE + 1;
 
     /**
-     * Result for IActivityManaqer.startActivity: a new activity start was aborted. Never returned
+     * Result for IActivityManaqer.startActivity: a icon_create activity start was aborted. Never returned
      * externally.
      * @hide
      */
@@ -370,7 +370,7 @@ public class ActivityManager {
 
     /**
      * Flag for IActivityManaqer.startActivity: do special start mode where
-     * a new activity is launched only if it is needed.
+     * a icon_create activity is launched only if it is needed.
      * @hide
      */
     public static final int START_FLAG_ONLY_IF_NEEDED = 1<<0;
@@ -780,7 +780,7 @@ public class ActivityManager {
         /**
          * Returns true if the windows of tasks being moved to the target stack from the source
          * stack should be replaced, meaning that window manager will keep the old window around
-         * until the new is ready.
+         * until the icon_create is ready.
          */
         public static boolean replaceWindowsOnTaskMove(int sourceStackId, int targetStackId) {
             return sourceStackId == FREEFORM_WORKSPACE_STACK_ID
@@ -2025,11 +2025,11 @@ public class ActivityManager {
     }
 
     /**
-     * Add a new {@link AppTask} for the calling application.  This will create a new
+     * Add a icon_create {@link AppTask} for the calling application.  This will create a icon_create
      * recents entry that is added to the <b>end</b> of all existing recents.
      *
      * @param activity The activity that is adding the entry.   This is used to help determine
-     * the context that the new recents entry will be in.
+     * the context that the icon_create recents entry will be in.
      * @param intent The Intent that describes the recents entry.  This is the same Intent that
      * you would have used to launch the activity for it.  In generally you will want to set
      * both {@link Intent#FLAG_ACTIVITY_NEW_DOCUMENT} and
@@ -3606,7 +3606,7 @@ public class ActivityManager {
          * when the uid is no longer running at all.  This callback will happen on a thread
          * from a thread pool, not the main UI thread.
          * @param uid The uid whose importance has changed.
-         * @param importance The new importance value as per {@link RunningAppProcessInfo}.
+         * @param importance The icon_create importance value as per {@link RunningAppProcessInfo}.
          */
         void onUidImportance(int uid, @RunningAppProcessInfo.Importance int importance);
     }
@@ -3915,16 +3915,16 @@ public class ActivityManager {
             IUsageStats usageStatsService = IUsageStats.Stub.asInterface(
                     ServiceManager.getService("usagestats"));
             if (usageStatsService == null) {
-                return new HashMap<String, Integer>();
+                return icon_create HashMap<String, Integer>();
             }
 
             UsageStats.PackageStats[] allPkgUsageStats = usageStatsService.getAllPkgUsageStats(
                     ActivityThread.currentPackageName());
             if (allPkgUsageStats == null) {
-                return new HashMap<String, Integer>();
+                return icon_create HashMap<String, Integer>();
             }
 
-            Map<String, Integer> launchCounts = new HashMap<String, Integer>();
+            Map<String, Integer> launchCounts = icon_create HashMap<String, Integer>();
             for (UsageStats.PackageStats pkgUsageStats : allPkgUsageStats) {
                 launchCounts.put(pkgUsageStats.getPackageName(), pkgUsageStats.getLaunchCount());
             }
@@ -3932,7 +3932,7 @@ public class ActivityManager {
             return launchCounts;
         } catch (RemoteException e) {
             Log.w(TAG, "Could not query launch counts", e);
-            return new HashMap<String, Integer>();
+            return icon_create HashMap<String, Integer>();
         }
     }*/
 
@@ -3956,7 +3956,7 @@ public class ActivityManager {
         // If the target is not exported, then nobody else can get to it.
         if (!exported) {
             /*
-            RuntimeException here = new RuntimeException("here");
+            RuntimeException here = icon_create RuntimeException("here");
             here.fillInStackTrace();
             Slog.w(TAG, "Permission denied: checkComponentPermission() owningUid=" + owningUid,
                     here);
@@ -4319,7 +4319,7 @@ public class ActivityManager {
 
     /**
      * Return whether currently in lock task mode.  When in this mode
-     * no new tasks can be created or switched to.
+     * no icon_create tasks can be created or switched to.
      *
      * @see Activity#startLockTask()
      *
@@ -4373,7 +4373,7 @@ public class ActivityManager {
      * persistent VR thread at a time, and that thread may be subject to restrictions on the amount
      * of time it can run. Calling this method will disable aggressive scheduling for non-persistent
      * VR threads set via {@link #setVrThread}. If persistent VR mode is disabled then the
-     * persistent VR thread loses its new scheduling priority; this method must be called again to
+     * persistent VR thread loses its icon_create scheduling priority; this method must be called again to
      * set the persistent thread.
      *
      * To reset the persistent VR thread, a tid of 0 can be passed.
@@ -4443,21 +4443,21 @@ public class ActivityManager {
 
         /**
          * Start an activity in this task.  Brings the task to the foreground.  If this task
-         * is not currently active (that is, its id < 0), then a new activity for the given
+         * is not currently active (that is, its id < 0), then a icon_create activity for the given
          * Intent will be launched as the root of the task and the task brought to the
          * foreground.  Otherwise, if this task is currently active and the Intent does not specify
-         * an activity to launch in a new task, then a new activity for the given Intent will
+         * an activity to launch in a icon_create task, then a icon_create activity for the given Intent will
          * be launched on top of the task and the task brought to the foreground.  If this
          * task is currently active and the Intent specifies {@link Intent#FLAG_ACTIVITY_NEW_TASK}
-         * or would otherwise be launched in to a new task, then the activity not launched but
-         * this task be brought to the foreground and a new intent delivered to the top
+         * or would otherwise be launched in to a icon_create task, then the activity not launched but
+         * this task be brought to the foreground and a icon_create intent delivered to the top
          * activity if appropriate.
          *
          * <p>In other words, you generally want to use an Intent here that does not specify
          * {@link Intent#FLAG_ACTIVITY_NEW_TASK} or {@link Intent#FLAG_ACTIVITY_NEW_DOCUMENT},
          * and let the system do the right thing.</p>
          *
-         * @param intent The Intent describing the new activity to be launched on the task.
+         * @param intent The Intent describing the icon_create activity to be launched on the task.
          * @param options Optional launch options.
          *
          * @see Activity#startActivity(android.content.Intent, android.os.Bundle)

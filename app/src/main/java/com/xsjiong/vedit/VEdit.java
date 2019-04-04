@@ -6,7 +6,6 @@ import android.content.Context;
 import android.graphics.*;
 import android.os.Bundle;
 import android.os.Handler;
-import android.text.Editable;
 import android.text.InputType;
 import android.text.TextPaint;
 import android.util.AttributeSet;
@@ -83,8 +82,9 @@ public class VEdit extends View {
 	private int _SStartLine, _SEndLine;
 	private float LineHeight;
 	private byte _DraggingCursor = Cursor.TYPE_NONE;
-	private boolean _ShowingCursor;
+	private SlideBar _SlideBar;
 	private EditActionStack _EditActionStack = new EditActionStack(this, EDIT_ACTION_STACK_SIZE);
+	private EditListener _EditListener = null;
 
 	// -----------------------
 	// -----Constructors------
@@ -124,6 +124,7 @@ public class VEdit extends View {
 		E[1] = 0;
 		E[2] = 1; // 来自我自己把全部删了之后的E信息
 		_TextLength = 0;
+		_SlideBar = new MaterialSlideBar(this);
 		applyColorScheme();
 		setVerticalScrollBarEnabled(true);
 	}
@@ -131,6 +132,18 @@ public class VEdit extends View {
 	// ------------------
 	// -----Methods------
 	// ------------------
+
+	public void setEditListener(EditListener listener) {
+		this._EditListener = listener;
+	}
+
+	public EditListener getEditListener() {
+		return _EditListener;
+	}
+
+	public float getMaxScrollY() {
+		return ContentHeight - getHeight();
+	}
 
 	public void selectAll() {
 		setSelectionRange(0, _TextLength);
@@ -185,6 +198,10 @@ public class VEdit extends View {
 		_Lexer = lexer;
 		_Lexer.setText(S);
 		invalidate();
+	}
+
+	public VLexer getLexer() {
+		return _Lexer;
 	}
 
 	public void loadURL(String url) throws IOException {
@@ -289,7 +306,6 @@ public class VEdit extends View {
 
 	public void setColorScheme(VEditScheme scheme) {
 		this._Scheme = scheme;
-		_Cursor.setHeight(TextHeight);
 		applyColorScheme();
 		invalidate();
 	}
@@ -323,14 +339,10 @@ public class VEdit extends View {
 		return _LinePaddingBottom;
 	}
 
-	public void setText(String s) {
-		setText(s == null ? new char[0] : s.toCharArray());
-	}
-
-	public void setText(char[] s) {
+	public void setText(char[] s, int length) {
 		if (s == null) s = new char[0];
 		this.S = s;
-		_TextLength = s.length;
+		_TextLength = length;
 		if (_Editable && _IMM != null)
 			_IMM.restartInput(this);
 		calculateEnters();
@@ -338,6 +350,14 @@ public class VEdit extends View {
 		onLineChange();
 		requestLayout();
 		postInvalidate();
+	}
+
+	public void setText(String s) {
+		setText(s == null ? new char[0] : s.toCharArray());
+	}
+
+	public void setText(char[] s) {
+		setText(s, s.length);
 	}
 
 	public int getSelectionStart() {
@@ -468,7 +488,9 @@ public class VEdit extends View {
 
 	public void deleteChar(int line, int column) {
 		if (line == 1 && column == 0) return;
-		_EditActionStack.addAction(new EditAction.DeleteCharAction(line, column, S[E[line] + column - 1]));
+		EditAction action = new EditAction.DeleteCharAction(line, column, S[E[line] + column - 1]);
+		if (interceptEditAction(action)) return;
+		_EditActionStack.addAction(action);
 	}
 
 	public void _deleteChar() {
@@ -511,7 +533,9 @@ public class VEdit extends View {
 	}
 
 	public void insertChar(int line, int column, char c) {
-		_EditActionStack.addAction(new EditAction.InsertCharAction(line, column, c));
+		EditAction action = new EditAction.InsertCharAction(line, column, c);
+		if (interceptEditAction(action)) return;
+		_EditActionStack.addAction(action);
 	}
 
 	public int[] _insertChar(int line, int column, char c) {
@@ -554,6 +578,10 @@ public class VEdit extends View {
 
 	public String getText(int st, int en) {
 		return new String(S, st, en - st);
+	}
+
+	public char[] getRawChars() {
+		return S;
 	}
 
 	public char[] getChars(int st, int en) {
@@ -627,7 +655,9 @@ public class VEdit extends View {
 			insertChar(line, column, cs[0]);
 			return;
 		}
-		_EditActionStack.addAction(new EditAction.InsertCharsAction(line, column, cs));
+		EditAction action = new EditAction.InsertCharsAction(line, column, cs);
+		if (interceptEditAction(action)) return;
+		_EditActionStack.addAction(action);
 	}
 
 	public void _insertChars(char[] cs) {
@@ -701,7 +731,9 @@ public class VEdit extends View {
 
 	public void deleteChars(int line, int column, int count) {
 		int pos = E[line] + column;
-		_EditActionStack.addAction(new EditAction.DeleteCharsAction(line, column, getChars(pos - count, pos)));
+		EditAction action = new EditAction.DeleteCharsAction(line, column, getChars(pos - count, pos));
+		if (interceptEditAction(action)) return;
+		_EditActionStack.addAction(action);
 	}
 
 	public void _deleteChars(int count) {
@@ -751,7 +783,9 @@ public class VEdit extends View {
 			st = tmp;
 		}
 		int line = findLine(en);
-		_EditActionStack.addAction(new EditAction.ReplaceAction(line, en - E[line], getChars(st, en), cs));
+		EditAction action = new EditAction.ReplaceAction(line, en - E[line], getChars(st, en), cs);
+		if (interceptEditAction(action)) return;
+		_EditActionStack.addAction(action);
 	}
 
 	public void moveCursorRelative(int count) {
@@ -796,6 +830,7 @@ public class VEdit extends View {
 	}
 
 	public void expandSelectionFrom(int pos) {
+		if (pos < 0 || pos > _TextLength) return;
 		if (pos == _TextLength) pos--;
 		int st = pos, en = pos;
 		for (; st >= 0 && isSelectableChar(S[st]); st--) ;
@@ -878,6 +913,7 @@ public class VEdit extends View {
 	public boolean onTouchEvent(MotionEvent event) {
 		SpeedCalc.addMovement(event);
 		boolean s = super.onTouchEvent(event);
+		if (_SlideBar.handleEvent(event)) return true;
 		switch (event.getActionMasked()) {
 			case MotionEvent.ACTION_DOWN:
 				_stX = _lastX = event.getX();
@@ -1125,6 +1161,7 @@ public class VEdit extends View {
 			_Cursor.draw(canvas, xo + _SStartHorizonOffset, sty, Cursor.TYPE_LEFT);
 			_Cursor.draw(canvas, xo + _SEndHorizonOffset, LineHeight * _SEndLine, Cursor.TYPE_RIGHT);
 		}
+		_SlideBar.draw(canvas);
 		if (G.LOG_TIME) {
 			st = System.currentTimeMillis() - st;
 			Log.i(T, "耗时3: " + st);
@@ -1135,9 +1172,16 @@ public class VEdit extends View {
 	// -----Private Methods-----
 	// -------------------------
 
+	private boolean interceptEditAction(EditAction action) {
+		if (_EditListener == null) return false;
+		return _EditListener.onEdit(action);
+	}
+
 	private void applyColorScheme() {
 		setBackgroundColor(_Scheme.getBackgroundColor());
+		_Cursor.setHeight(TextHeight);
 		LineNumberPaint.setColor(_Scheme.getLineNumberColor());
+		_SlideBar.onSchemeChange();
 	}
 
 	private byte getDraggingCursor(float x, float y) {
@@ -1188,7 +1232,6 @@ public class VEdit extends View {
 
 	private boolean processEvent(KeyEvent event) {
 		if (event.getAction() != KeyEvent.ACTION_DOWN) return false;
-		Log.i(T, event.isCtrlPressed() + " " + event.toString());
 		if (event.isCtrlPressed()) {
 			switch (event.getKeyCode()) {
 				case KeyEvent.KEYCODE_C:
@@ -1354,6 +1397,10 @@ public class VEdit extends View {
 	// -----------------------
 	// -----Inner Classes-----
 	// -----------------------
+
+	public interface EditListener {
+		boolean onEdit(EditAction action);
+	}
 
 	private static class VInputConnection implements InputConnection {
 		private VEdit Q;
@@ -1539,6 +1586,84 @@ public class VEdit extends View {
 		}
 	}
 
+	public static abstract class SlideBar {
+
+		protected VEdit parent;
+
+		public SlideBar(VEdit parent) {
+			this.parent = parent;
+		}
+
+		abstract void onSchemeChange();
+
+		abstract void draw(Canvas canvas);
+
+		abstract boolean handleEvent(MotionEvent event);
+	}
+
+	public static class MaterialSlideBar extends SlideBar {
+		public static final int EXPAND_WIDTH = 20, COLLAPSE_WIDTH = 5;
+		public static final int HEIGHT = 40;
+
+		private boolean expand;
+		private Paint mp;
+		private float startY;
+
+		public MaterialSlideBar(VEdit parent) {
+			super(parent);
+			expand = false;
+			mp = new Paint();
+			mp.setStyle(Paint.Style.FILL);
+			mp.setAntiAlias(false);
+		}
+
+		@Override
+		public void onSchemeChange() {
+			mp.setColor(parent._Scheme.getSlideBarColor());
+		}
+
+		@Override
+		public boolean handleEvent(MotionEvent event) {
+			final float x = event.getX();
+			final float y = event.getY();
+			if (event.getAction() == MotionEvent.ACTION_DOWN) {
+				expand = false;
+				if ((parent.getWidth() - x) <= EXPAND_WIDTH) {
+					startY = y - getBarStartY();
+					expand = startY >= 0 && startY <= HEIGHT;
+					return expand;
+				}
+				return false;
+			}
+			if (!expand) return false;
+			switch (event.getAction()) {
+				case MotionEvent.ACTION_MOVE:
+				case MotionEvent.ACTION_UP:
+					float target = (y - startY) / (parent.getHeight() - HEIGHT);
+					if (target < 0) target = 0;
+					if (target > 1) target = 1;
+					parent.scrollTo(parent.getScrollX(), (int) (target * parent.getMaxScrollY()));
+					break;
+			}
+			return true;
+		}
+
+		private int getWidth() {
+			return expand ? EXPAND_WIDTH : COLLAPSE_WIDTH;
+		}
+
+		public float getBarStartY() {
+			return (float) (parent.getHeight() - HEIGHT) * parent.getScrollY() / parent.getMaxScrollY();
+		}
+
+		@Override
+		public void draw(Canvas canvas) {
+			final float start = getBarStartY() + +parent.getScrollY();
+			int right = canvas.getWidth() + parent.getScrollX();
+			canvas.drawRect(right - getWidth(), start, right, start + HEIGHT, mp);
+		}
+	}
+
 	public static abstract class Cursor {
 		public static final byte TYPE_NONE = -1, TYPE_NORMAL = 0, TYPE_LEFT = 1, TYPE_RIGHT = 2;
 
@@ -1559,11 +1684,12 @@ public class VEdit extends View {
 
 	public static class GlassCursor extends Cursor {
 		private float h, radius;
-		private Paint mp = new Paint();
+		private Paint mp;
 		private Bitmap c0, c1, c2;
 
 		public GlassCursor(VEdit parent) {
 			super(parent);
+			mp = new Paint();
 			mp.setStyle(Paint.Style.FILL);
 			mp.setAntiAlias(true);
 		}
@@ -1620,7 +1746,7 @@ public class VEdit extends View {
 
 		@Override
 		public void draw(Canvas canvas, float x, float y, byte type) {
-			if (isRecycled()) setHeight(h / 1.5f);
+			if (isRecycled()) backRecycle();
 			canvas.translate(x, y);
 			switch (type) {
 				case 0:
@@ -1638,7 +1764,7 @@ public class VEdit extends View {
 
 		@Override
 		public boolean isTouched(float x, float y, byte type) {
-			if (isRecycled()) setHeight(h / 1.5f);
+			if (isRecycled()) backRecycle();
 			Bitmap cur = null;
 			switch (type) {
 				case 0:
@@ -1674,6 +1800,13 @@ public class VEdit extends View {
 			tryRecycle(c1);
 			tryRecycle(c2);
 			mp = null;
+		}
+
+		private void backRecycle() {
+			mp = new Paint();
+			mp.setStyle(Paint.Style.FILL);
+			mp.setAntiAlias(true);
+			setHeight(h / 1.5f);
 		}
 	}
 

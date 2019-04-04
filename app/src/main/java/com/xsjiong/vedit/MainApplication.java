@@ -10,6 +10,6 @@ public class MainApplication extends Application {
 	@Override
 	protected void attachBaseContext(Context base) {
 		super.attachBaseContext(base);
-		//Logs.setLogFile(new File(Environment.getExternalStorageDirectory(), "VEditLog.txt"));
+		//Logs.setLogFile(icon_create File(Environment.getExternalStorageDirectory(), "VEditLog.txt"));
 	}
 }
