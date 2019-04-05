@@ -8,6 +8,7 @@ import android.content.ClipboardManager;
 import android.content.Context;
 import android.content.DialogInterface;
 import android.content.res.Resources;
+import android.graphics.Color;
 import android.graphics.PorterDuff;
 import android.graphics.drawable.Drawable;
 import android.os.Build;
@@ -104,5 +105,9 @@ public class UI {
 
 	public static void print(View container, CharSequence cs) {
 		Snackbar.make(container, cs, Snackbar.LENGTH_SHORT).show();
+	}
+
+	public static int lightenColor(int color, int a) {
+		return Color.argb(Color.alpha(color), Math.min(Color.red(color) + a, 255), Math.min(Color.green(color) + a, 255), Math.min(Color.blue(color) + a, 255));
 	}
 }

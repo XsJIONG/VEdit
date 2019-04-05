@@ -3,10 +3,12 @@ package com.xsjiong.vedit;
 import android.Manifest;
 import android.content.Context;
 import android.content.DialogInterface;
+import android.content.Intent;
 import android.graphics.Color;
 import android.graphics.Typeface;
 import android.os.Bundle;
 import android.os.Environment;
+import android.support.annotation.Nullable;
 import android.support.v4.view.ViewCompat;
 import android.support.v7.app.AlertDialog;
 import android.support.v7.widget.AppCompatButton;
@@ -33,6 +35,8 @@ import java.nio.CharBuffer;
 import java.nio.charset.Charset;
 
 public class EditActivity extends BaseActivity implements VEdit.EditListener, MultiContentManager.EditDataClickListener {
+	public static final int REQUEST_CODE_SETTING = 1;
+
 	private LinearLayoutCompat Container;
 	private MultiContentManager ContentManager;
 	private VEdit Content;
@@ -55,7 +59,7 @@ public class EditActivity extends BaseActivity implements VEdit.EditListener, Mu
 		ContentManager.setEditDataClickListener(this);
 		Content = ContentManager.getContent();
 		Content.setTypeface(Typeface.createFromAsset(getAssets(), "FiraCode-Medium.ttf"));
-		Content.setTextSize(TypedValue.COMPLEX_UNIT_SP, 14);
+		Content.setTextSize(TypedValue.COMPLEX_UNIT_SP, G._TEXT_SIZE);
 		Content.setEditListener(this);
 		Container.addView(ContentManager, -1, -1);
 		setContentView(Container);
@@ -154,6 +158,7 @@ public class EditActivity extends BaseActivity implements VEdit.EditListener, Mu
 		sm.add(0, 2, 0, "打开");
 		sm.add(0, 3, 0, "保存");
 		sm.add(0, 4, 0, "另存为");
+		menu.add(0, 5, 0, R.string.title_settings).setIcon(UI.tintDrawable(this, R.mipmap.icon_settings, UI.AccentColor)).setShowAsActionFlags(flag);
 		return true;
 	}
 
@@ -191,8 +196,24 @@ public class EditActivity extends BaseActivity implements VEdit.EditListener, Mu
 				}).show();
 				break;
 			}
+			case 5: {
+				startActivityForResult(new Intent(this, SettingActivity.class), REQUEST_CODE_SETTING);
+				break;
+			}
 		}
 		return super.onOptionsItemSelected(item);
+	}
+
+	@Override
+	protected void onActivityResult(int requestCode, int resultCode, @Nullable Intent data) {
+		if (requestCode == REQUEST_CODE_SETTING && resultCode == RESULT_OK && data.getBooleanExtra(SettingActivity.CONFIG_CHANGED, false))
+			onSettingChanged();
+		super.onActivityResult(requestCode, resultCode, data);
+	}
+
+	private void onSettingChanged() {
+		Content.setLexer(G.newLexer(G._LEXER_ID));
+		Content.setTextSize(TypedValue.COMPLEX_UNIT_SP, G._TEXT_SIZE);
 	}
 
 	/*@Override
@@ -230,7 +251,7 @@ public class EditActivity extends BaseActivity implements VEdit.EditListener, Mu
 				}
 				break;
 			case 4:
-				icon_create AlertDialog.Builder(this).setTitle("切换高亮").setSingleChoiceItems(G.LEXER_NAMES, G.getLexerIndex(ContentManager.getLexer()), icon_create DialogInterface.OnClickListener() {
+				new AlertDialog.Builder(this).setTitle("切换高亮").setSingleChoiceItems(G.LEXER_NAMES, G.getLexerIndex(ContentManager.getLexer()), icon_create DialogInterface.OnClickListener() {
 					@Override
 					public void onEditDataClick(DialogInterface dialog, int which) {
 						Content.setLexer(G.newLexer(which));

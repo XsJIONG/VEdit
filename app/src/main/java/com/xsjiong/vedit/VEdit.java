@@ -3,6 +3,7 @@ package com.xsjiong.vedit;
 import android.content.ClipData;
 import android.content.ClipboardManager;
 import android.content.Context;
+import android.database.Cursor;
 import android.graphics.*;
 import android.os.Bundle;
 import android.os.Handler;
@@ -664,11 +665,14 @@ public class VEdit extends View {
 		int[] ret = _insertChars(_CursorLine, _CursorColumn, cs);
 		_CursorLine = ret[0];
 		_CursorColumn = ret[1];
+		calculateEnters();
 		onSelectionUpdate();
 	}
 
 	public int[] _insertChars(int line, int column, char[] cs) {
 		if (!_Editable) return new int[] {line, column};
+		if (cs.length == 1)
+			return _insertChar(line, column, cs[0]);
 		final int tl = cs.length;
 		final int pos = E[line] + column;
 
@@ -731,6 +735,7 @@ public class VEdit extends View {
 
 	public void deleteChars(int line, int column, int count) {
 		int pos = E[line] + column;
+		if (count > pos) count = pos;
 		EditAction action = new EditAction.DeleteCharsAction(line, column, getChars(pos - count, pos));
 		if (interceptEditAction(action)) return;
 		_EditActionStack.addAction(action);
@@ -1108,8 +1113,8 @@ public class VEdit extends View {
 			if (parseTot <= _Lexer.getPartCount()) {
 				while (i >= parseTarget && parseTot <= _Lexer.getPartCount())
 					parseTarget = _Lexer.getPartStart(++parseTot);
-				if (parseTot == 0) break;
-				ContentPaint.setColor(_Scheme.getTypeColor(_Lexer.getPartType(parseTot - 1)));
+				if (parseTot != 0)
+					ContentPaint.setColor(_Scheme.getTypeColor(_Lexer.getPartType(parseTot - 1)));
 			}
 			tot = 0;
 			for (x = XStart; i < en && x <= right; i++) {
@@ -1138,7 +1143,8 @@ public class VEdit extends View {
 					canvas.drawRect(xo, y - YOffset - _LinePaddingTop, x, y - YOffset + TextHeight + _LinePaddingBottom, ColorPaint);
 				}
 			}
-			if ((y += LineHeight) >= bottom) break;
+			if ((y += LineHeight) >= bottom)
+				break;
 		}
 		if (showCursor) {
 			ColorPaint.setColor(_Scheme.getCursorLineColor());

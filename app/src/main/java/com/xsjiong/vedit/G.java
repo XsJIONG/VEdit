@@ -1,11 +1,7 @@
 package com.xsjiong.vedit;
 
-import android.Manifest;
-import android.app.Activity;
 import android.content.Context;
-import android.content.pm.PackageManager;
-import android.support.v4.app.ActivityCompat;
-import android.support.v4.content.ContextCompat;
+import android.content.SharedPreferences;
 import com.xsjiong.vlexer.*;
 
 public final class G {
@@ -14,6 +10,30 @@ public final class G {
 	public static final boolean LOG_TIME = false;
 	public static final Class<? extends VLexer>[] LEXERS = (Class<? extends VLexer>[]) new Class<?>[] {VJavaLexer.class, VJavaScriptLexer.class, VCLexer.class, VCppLexer.class, VNullLexer.class};
 	public static final String[] LEXER_NAMES = {"Java", "JavaScript", "C", "C++", "无"};
+	private static SharedPreferences S;
+	public static int _LEXER_ID;
+	public static int _TEXT_SIZE;
+
+	static final void Initialize(Context cx) {
+		S = cx.getSharedPreferences("editor_config", Context.MODE_PRIVATE);
+		String str = S.getString("lexer_name", LEXER_NAMES[0]);
+		for (int i = 0; i < LEXER_NAMES.length; i++)
+			if (LEXER_NAMES[i].equals(str)) {
+				_LEXER_ID = i;
+				break;
+			}
+		_TEXT_SIZE = S.getInt("text_size", 14);
+	}
+
+	public static void setLexerId(int id) {
+		_LEXER_ID = id;
+		S.edit().putString("lexer_name", LEXER_NAMES[id]).apply();
+	}
+
+	public static void setTextSize(int size) {
+		_TEXT_SIZE = size;
+		S.edit().putInt("text_size", size).apply();
+	}
 
 	public static final int getLexerIndex(VLexer lexer) {
 		Class<? extends VLexer> cl = lexer.getClass();

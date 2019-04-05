@@ -26,7 +26,7 @@ public class MultiContentManager extends LinearLayoutCompat implements View.OnCl
 	private LinearLayoutCompat ButtonLayout;
 	private int size;
 	private EditData[] data = new EditData[EXPAND_SIZE];
-	private int ind;
+	private AppCompatButton CurrentButton;
 	private VEdit Content;
 	private EditDataClickListener _ClickListener;
 
@@ -48,12 +48,12 @@ public class MultiContentManager extends LinearLayoutCompat implements View.OnCl
 		addView(ButtonScroller, -1, MAX_HEIGHT);
 		addView(Content, -1, -1);
 		size = 0;
-		ind = -1;
 		onTabSizeUpdated();
 	}
 
 	public EditData getCurrentEditData() {
-		return data[ind];
+		if (CurrentButton == null) return null;
+		return (EditData) CurrentButton.getTag();
 	}
 
 	public int getSize() {
@@ -61,7 +61,8 @@ public class MultiContentManager extends LinearLayoutCompat implements View.OnCl
 	}
 
 	public int getIndex() {
-		return ind;
+		if (CurrentButton == null) return -1;
+		return ((EditData) CurrentButton.getTag()).index;
 	}
 
 	public EditData getEditData(int index) {
@@ -69,10 +70,8 @@ public class MultiContentManager extends LinearLayoutCompat implements View.OnCl
 	}
 
 	private void onTabSizeUpdated() {
-		if (size == 0) {
-			ind = -1;
+		if (size == 0)
 			addTab();
-		}
 	}
 
 	public void setEditDataClickListener(EditDataClickListener listener) {
@@ -90,8 +89,9 @@ public class MultiContentManager extends LinearLayoutCompat implements View.OnCl
 	public void setColorScheme(VEditScheme scheme) {
 		ButtonLayout.setBackgroundColor(scheme.getBackgroundColor());
 		Content.setColorScheme(scheme);
+		int ind = getIndex();
 		for (int i = 0; i < size; i++)
-			selectButton(i, i == ind);
+			selectButton(getButton(i), i == ind);
 	}
 
 	public VEditScheme getColorScheme() {
@@ -140,6 +140,7 @@ public class MultiContentManager extends LinearLayoutCompat implements View.OnCl
 		}
 		data[size] = null;
 		ButtonLayout.removeViewAt(pos);
+		int ind = getIndex();
 		if (ind == pos) {
 			ind = -1;
 			if (pos == size)
@@ -205,39 +206,35 @@ public class MultiContentManager extends LinearLayoutCompat implements View.OnCl
 		EditData data = (EditData) v.getTag();
 		if (_ClickListener != null)
 			_ClickListener.onEditDataClick(data);
-		if (data.index != ind) setIndex(data.index);
+		if (v != CurrentButton) setIndex(data.index);
 	}
 
 	public void setIndex(int pos) {
 		if (size == 0) return;
 		if (pos < 0) pos = 0;
-		if (pos > size) pos = size;
-		if (pos == ind) return;
-		Log.i("VEdit", "pos " + pos);
-		if (ind != -1) {
-			selectButton(ind, false);
-			data[ind].loadFrom(Content);
+		if (pos > size - 1) pos = size - 1;
+		if (CurrentButton != null) {
+			selectButton(CurrentButton, false);
+			getCurrentEditData().loadFrom(Content);
 		}
-		selectButton(ind = pos, true);
-		final AppCompatButton button = getButton(ind);
-		button.post(new Runnable() {
+		CurrentButton = getButton(pos);
+		selectButton(CurrentButton, true);
+		CurrentButton.post(new Runnable() {
 			@Override
 			public void run() {
-				int left = button.getLeft();
-				int right = button.getRight() - ButtonScroller.getWidth();
+				int left = CurrentButton.getLeft();
+				int right = CurrentButton.getRight() - ButtonScroller.getWidth();
 				if (right > ButtonScroller.getScrollX())
 					ButtonScroller.smoothScrollTo(right, 0);
 				else if (left < ButtonScroller.getScrollX())
 					ButtonScroller.smoothScrollTo(left, 0);
 			}
 		});
-		data[ind].applyTo(Content);
+		getCurrentEditData().applyTo(Content);
 	}
 
-	public void selectButton(int ind, boolean selected) {
-		if (ind < 0) return;
-		if (ind >= ButtonLayout.getChildCount()) return;
-		AppCompatButton button = getButton(ind);
+	public void selectButton(AppCompatButton button, boolean selected) {
+		if (button == null) return;
 		if (selected) {
 			button.setBackgroundColor(Content.getColorScheme().getLineNumberColor());
 			button.setTextColor(Content.getColorScheme().getBackgroundColor());
