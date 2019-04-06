@@ -835,8 +835,8 @@ public class VEdit extends View {
 	}
 
 	public void expandSelectionFrom(int pos) {
-		if (pos < 0 || pos > _TextLength) return;
 		if (pos == _TextLength) pos--;
+		if (pos < 0 || pos > _TextLength) return;
 		int st = pos, en = pos;
 		for (; st >= 0 && isSelectableChar(S[st]); st--) ;
 		for (; en < _TextLength && isSelectableChar(S[en]); en++) ;

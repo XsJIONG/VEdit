@@ -2,7 +2,10 @@ package com.xsjiong.vedit;
 
 import android.content.Context;
 import android.content.SharedPreferences;
+import android.os.Environment;
 import com.xsjiong.vlexer.*;
+
+import java.io.File;
 
 public final class G {
 	public static final String T = "VEdit";
@@ -13,6 +16,7 @@ public final class G {
 	private static SharedPreferences S;
 	public static int _LEXER_ID;
 	public static int _TEXT_SIZE;
+	public static File _HOME_DIR;
 
 	static final void Initialize(Context cx) {
 		S = cx.getSharedPreferences("editor_config", Context.MODE_PRIVATE);
@@ -23,16 +27,19 @@ public final class G {
 				break;
 			}
 		_TEXT_SIZE = S.getInt("text_size", 14);
+		_HOME_DIR = new File(S.getString("home_dir", Environment.getExternalStorageDirectory().getAbsolutePath()));
 	}
 
 	public static void setLexerId(int id) {
-		_LEXER_ID = id;
-		S.edit().putString("lexer_name", LEXER_NAMES[id]).apply();
+		S.edit().putString("lexer_name", LEXER_NAMES[_LEXER_ID = id]).apply();
 	}
 
 	public static void setTextSize(int size) {
-		_TEXT_SIZE = size;
-		S.edit().putInt("text_size", size).apply();
+		S.edit().putInt("text_size", _TEXT_SIZE = size).apply();
+	}
+
+	public static void setHomeDir(File dir) {
+		S.edit().putString("home_dir", (_HOME_DIR = dir).getAbsolutePath()).apply();
 	}
 
 	public static final int getLexerIndex(VLexer lexer) {

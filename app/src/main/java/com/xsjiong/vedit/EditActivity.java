@@ -1,7 +1,6 @@
 package com.xsjiong.vedit;
 
 import android.Manifest;
-import android.content.Context;
 import android.content.DialogInterface;
 import android.content.Intent;
 import android.graphics.Color;
@@ -11,31 +10,21 @@ import android.os.Environment;
 import android.support.annotation.Nullable;
 import android.support.v4.view.ViewCompat;
 import android.support.v7.app.AlertDialog;
-import android.support.v7.widget.AppCompatButton;
 import android.support.v7.widget.LinearLayoutCompat;
 import android.support.v7.widget.Toolbar;
-import android.text.TextUtils;
-import android.util.Log;
 import android.util.TypedValue;
 import android.view.Menu;
 import android.view.MenuItem;
 import android.view.SubMenu;
 import android.view.View;
-import android.widget.HorizontalScrollView;
-import com.xsjiong.vedit.scheme.VEditScheme;
 import com.xsjiong.vedit.scheme.VEditSchemeDark;
-import com.xsjiong.vedit.scheme.VEditSchemeLight;
-import com.xsjiong.vlexer.VJavaLexer;
-import com.xsjiong.vlexer.VLexer;
 
 import java.io.File;
-import java.io.FileInputStream;
 import java.io.FileOutputStream;
-import java.nio.CharBuffer;
-import java.nio.charset.Charset;
 
 public class EditActivity extends BaseActivity implements VEdit.EditListener, MultiContentManager.EditDataClickListener {
 	public static final int REQUEST_CODE_SETTING = 1;
+	public static final int REQUEST_CODE_CHOOSE_FILE = 2;
 
 	private LinearLayoutCompat Container;
 	private MultiContentManager ContentManager;
@@ -125,14 +114,15 @@ public class EditActivity extends BaseActivity implements VEdit.EditListener, Mu
 	private void SaveTab(final MultiContentManager.EditData data, final Runnable action) {
 		if (requestStoragePermissions()) return;
 		if (data.file == null) {
-			new CreateFileDialog(this, Environment.getExternalStorageDirectory(), new CreateFileDialog.CreateFileListener() {
+			setChooseFileListener(new ChooseFileListener() {
 				@Override
 				public void onChoose(File f) {
 					data.file = f;
 					ContentManager.onEditDataUpdated(data.index);
 					SaveTab(data, action);
 				}
-			}).show();
+			});
+			ChooseFileActivity.createFile(this, REQUEST_CODE_CHOOSE_FILE);
 			return;
 		}
 		try {
@@ -170,12 +160,13 @@ public class EditActivity extends BaseActivity implements VEdit.EditListener, Mu
 				break;
 			case 2: {
 				if (requestStoragePermissions()) break;
-				new ChooseFileDialog(this, Environment.getExternalStorageDirectory(), new ChooseFileDialog.ChooseFileListener() {
+				setChooseFileListener(new ChooseFileListener() {
 					@Override
 					public void onChoose(File f) {
 						ContentManager.addTab(f);
 					}
-				}, false).show();
+				});
+				ChooseFileActivity.chooseFile(this, REQUEST_CODE_CHOOSE_FILE);
 				break;
 			}
 			case 3: {
@@ -184,7 +175,7 @@ public class EditActivity extends BaseActivity implements VEdit.EditListener, Mu
 			}
 			case 4: {
 				if (requestStoragePermissions()) break;
-				new CreateFileDialog(this, Environment.getExternalStorageDirectory(), new CreateFileDialog.CreateFileListener() {
+				setChooseFileListener(new ChooseFileListener() {
 					@Override
 					public void onChoose(File f) {
 						MultiContentManager.EditData data = ContentManager.getCurrentEditData();
@@ -193,7 +184,8 @@ public class EditActivity extends BaseActivity implements VEdit.EditListener, Mu
 						ContentManager.onEditDataUpdated(data.index);
 						SaveTab(data, null);
 					}
-				}).show();
+				});
+				ChooseFileActivity.createFile(this, REQUEST_CODE_CHOOSE_FILE);
 				break;
 			}
 			case 5: {
@@ -204,16 +196,36 @@ public class EditActivity extends BaseActivity implements VEdit.EditListener, Mu
 		return super.onOptionsItemSelected(item);
 	}
 
+	private ChooseFileListener _ChooseFileListener;
+
 	@Override
 	protected void onActivityResult(int requestCode, int resultCode, @Nullable Intent data) {
-		if (requestCode == REQUEST_CODE_SETTING && resultCode == RESULT_OK && data.getBooleanExtra(SettingActivity.CONFIG_CHANGED, false))
-			onSettingChanged();
+		if (resultCode == RESULT_OK) {
+			switch (requestCode) {
+				case REQUEST_CODE_SETTING:
+					if (data.getBooleanExtra(SettingActivity.CONFIG_CHANGED, false)) onSettingChanged();
+					break;
+				case REQUEST_CODE_CHOOSE_FILE:
+					String s = data.getStringExtra(ChooseFileActivity.TAG_RESULT);
+					if (s == null) break;
+					if (_ChooseFileListener != null) _ChooseFileListener.onChoose(new File(s));
+					break;
+			}
+		}
 		super.onActivityResult(requestCode, resultCode, data);
 	}
 
 	private void onSettingChanged() {
 		Content.setLexer(G.newLexer(G._LEXER_ID));
 		Content.setTextSize(TypedValue.COMPLEX_UNIT_SP, G._TEXT_SIZE);
+	}
+
+	private synchronized void setChooseFileListener(ChooseFileListener listener) {
+		this._ChooseFileListener = listener;
+	}
+
+	private interface ChooseFileListener {
+		void onChoose(File f);
 	}
 
 	/*@Override
