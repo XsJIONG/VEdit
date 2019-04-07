@@ -3,7 +3,6 @@ package com.xsjiong.vedit;
 import android.content.*;
 import android.content.res.*;
 import android.graphics.*;
-import android.graphics.drawable.*;
 import android.support.v7.app.AlertDialog;
 import android.support.v7.widget.AppCompatTextView;
 import android.util.*;
@@ -13,14 +12,14 @@ import android.widget.*;
 
 public class SettingFragment extends VFragment {
 	private LinearLayout Layout;
-	private DivideDrawable Divider;
+	private DividerDrawable Divider;
 	private ScrollView Scroll;
 
 	public SettingFragment(Context cx) {
 		super(cx);
 		Layout = new LinearLayout(cx);
 		Layout.setOrientation(LinearLayout.VERTICAL);
-		Divider = new DivideDrawable(UI.ThemeColor);
+		Divider = new DividerDrawable(UI.ThemeColor);
 		Layout.setDividerDrawable(Divider);
 		Layout.setShowDividers(LinearLayout.SHOW_DIVIDER_MIDDLE);
 		Scroll = new ScrollView(cx);
@@ -80,44 +79,6 @@ public class SettingFragment extends VFragment {
 		Layout.setShowDividers(Layout.getShowDividers() ^ LinearLayout.SHOW_DIVIDER_END);
 	}
 
-	private static class DivideDrawable extends Drawable {
-		private Paint paint;
-
-		@Override
-		public void setAlpha(int a) {
-		}
-
-		@Override
-		public void setColorFilter(ColorFilter filter) {
-		}
-
-		@Override
-		public int getOpacity() {
-			return PixelFormat.UNKNOWN;
-		}
-
-		public void setColor(int color) {
-			paint.setColor(color);
-			invalidateSelf();
-		}
-
-		public DivideDrawable(int color) {
-			paint = new Paint();
-			paint.setStyle(Paint.Style.FILL);
-			paint.setColor(color);
-			paint.setStrokeWidth(1);
-		}
-
-		@Override
-		public void draw(Canvas c) {
-			c.drawRect(getBounds(), paint);
-		}
-
-		@Override
-		public int getIntrinsicHeight() {
-			return 1;
-		}
-	}
 
 	@Override
 	public View getView() {

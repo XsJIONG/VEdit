@@ -24,7 +24,7 @@
 		          android:windowSoftInputMode="stateVisible|adjustResize"
 		          android:label="@string/title_settings"/>
 		<activity android:name=".ChooseFileActivity"
-		          android:launchMode="singleTask"
-		          android:windowSoftInputMode="stateVisible|adjustResize"/>
+		          android:theme="@style/AppThemeNoTitle"
+		          android:launchMode="singleTask"/>
 	</application>
 </manifest>

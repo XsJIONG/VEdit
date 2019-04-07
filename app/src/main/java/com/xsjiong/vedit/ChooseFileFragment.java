@@ -42,7 +42,7 @@ public class ChooseFileFragment extends VFragment implements AdapterView.OnItemC
 	}
 
 	public void setLastText(CharSequence cs) {
-		last.setText(cs);
+		goBack.setText(cs);
 	}
 
 	public void setChooseDirText(CharSequence cs) {
@@ -50,7 +50,7 @@ public class ChooseFileFragment extends VFragment implements AdapterView.OnItemC
 	}
 
 	public CharSequence getLastText() {
-		return last.getText();
+		return goBack.getText();
 	}
 
 	public CharSequence getChooseDirText() {
@@ -58,12 +58,30 @@ public class ChooseFileFragment extends VFragment implements AdapterView.OnItemC
 	}
 
 	private ListView list;
-	private AppCompatButton ok, last;
+	private AppCompatButton ok, goBack;
 	private File dir;
-	private LinearLayoutCompat layout, buttonlayout;
+	private LinearLayoutCompat layout, buttonLayout;
 	private boolean chooseDir;
-	private ChooseFileListener listener;
 	private FileFilter filter;
+	private ChooseFileListener listener;
+	private DirectoryChangeListener dirChangeListener;
+
+	public void setDirectoryChangeListener(DirectoryChangeListener listener) {
+		dirChangeListener = listener;
+		listener.onChange(dir);
+	}
+
+	public void setShowPath(boolean flag) {
+		path.setVisibility(flag ? View.VISIBLE : View.GONE);
+	}
+
+	public boolean isShowingPath() {
+		return path.getVisibility() == View.VISIBLE;
+	}
+
+	public DirectoryChangeListener getDirectoryChangeListener() {
+		return dirChangeListener;
+	}
 
 	@Override
 	public boolean accept(File pathname) {
@@ -90,7 +108,7 @@ public class ChooseFileFragment extends VFragment implements AdapterView.OnItemC
 		Refresh.setOnRefreshListener(new SwipeRefreshLayout.OnRefreshListener() {
 			@Override
 			public void onRefresh() {
-				setNow(getNow());
+				setCurrentDirectory(getCurrentDirectory());
 			}
 		});
 		list = new ListView(getContext());
@@ -102,20 +120,19 @@ public class ChooseFileFragment extends VFragment implements AdapterView.OnItemC
 		LinearLayoutCompat.LayoutParams p = getDivideParams(true);
 		Refresh.addView(list, -1, -1);
 		layout.addView(Refresh, p);
-		buttonlayout = new LinearLayoutCompat(getContext());
-		buttonlayout.setOrientation(LinearLayoutCompat.HORIZONTAL);
-		layout.addView(buttonlayout, -1, -2);
-		last = new AppCompatButton(cx);
-		last.setText("上一层");
-		last.setBackgroundDrawable(null);
-		last.setOnClickListener(new OnClickListener() {
+		buttonLayout = new LinearLayoutCompat(getContext());
+		buttonLayout.setOrientation(LinearLayoutCompat.HORIZONTAL);
+		layout.addView(buttonLayout, -1, -2);
+		goBack = new AppCompatButton(cx);
+		goBack.setText("上一层");
+		goBack.setBackgroundDrawable(null);
+		goBack.setOnClickListener(new OnClickListener() {
 			@Override
 			public void onClick(View v) {
-				dir = dir.getParentFile();
-				update();
+				goBack();
 			}
 		});
-		buttonlayout.addView(last, getDivideParams(false));
+		buttonLayout.addView(goBack, getDivideParams(false));
 		if (chooseDir) {
 			ok = new AppCompatButton(cx);
 			ok.setText("选择文件夹");
@@ -128,10 +145,11 @@ public class ChooseFileFragment extends VFragment implements AdapterView.OnItemC
 					onDettach();
 				}
 			});
-			buttonlayout.addView(ok, getDivideParams(false));
+			buttonLayout.addView(ok, getDivideParams(false));
 		}
 		adapter = new FileAdapter(getContext(), ds);
 		list.setAdapter(adapter);
+		if (dirChangeListener != null) dirChangeListener.onChange(dir);
 		update();
 		list.setOnItemClickListener(this);
 		Refresh.post(new Runnable() {
@@ -141,6 +159,15 @@ public class ChooseFileFragment extends VFragment implements AdapterView.OnItemC
 				path.setText(dir.getPath());
 			}
 		});
+		list.setDivider(new DividerDrawable(UI.ThemeColor));
+	}
+
+	public boolean goBack() {
+		if (dir.getParentFile() == null) return false;
+		dir = dir.getParentFile();
+		if (dirChangeListener != null) dirChangeListener.onChange(dir);
+		update();
+		return true;
 	}
 
 	public void setChooseDir(boolean chooseDir) {
@@ -151,13 +178,22 @@ public class ChooseFileFragment extends VFragment implements AdapterView.OnItemC
 		return chooseDir;
 	}
 
-	public File getNow() {
+	public File getCurrentDirectory() {
 		return dir;
 	}
 
-	public void setNow(File f) {
+	public void setCurrentDirectory(File f) {
 		dir = f;
+		if (dirChangeListener != null) dirChangeListener.onChange(f);
 		update();
+	}
+
+	public void setShowGoBackButton(boolean flag) {
+		goBack.setVisibility(flag ? View.VISIBLE : View.GONE);
+	}
+
+	public boolean isShowingGoBackButton() {
+		return goBack.getVisibility() == View.VISIBLE;
 	}
 
 	private void update() {
@@ -167,7 +203,7 @@ public class ChooseFileFragment extends VFragment implements AdapterView.OnItemC
 			@Override
 			public void run() {
 				ds.clear();
-				File[] fs = dir.listFiles();
+				File[] fs = dir.listFiles(filter);
 				if (fs == null) fs = new File[] {};
 				int dq = 0;
 				for (File one : fs) if (one.isDirectory()) dq++;
@@ -206,6 +242,7 @@ public class ChooseFileFragment extends VFragment implements AdapterView.OnItemC
 		File f = ds.get(pos);
 		if (f.isDirectory()) {
 			dir = f;
+			if (dirChangeListener != null) dirChangeListener.onChange(dir);
 			update();
 		} else {
 			if (listener != null)
@@ -262,5 +299,9 @@ public class ChooseFileFragment extends VFragment implements AdapterView.OnItemC
 
 	public interface ChooseFileListener {
 		void onChoose(File f);
+	}
+
+	public interface DirectoryChangeListener {
+		void onChange(File f);
 	}
 }

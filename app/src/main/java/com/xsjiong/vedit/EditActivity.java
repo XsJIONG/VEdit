@@ -6,7 +6,6 @@ import android.content.Intent;
 import android.graphics.Color;
 import android.graphics.Typeface;
 import android.os.Bundle;
-import android.os.Environment;
 import android.support.annotation.Nullable;
 import android.support.v4.view.ViewCompat;
 import android.support.v7.app.AlertDialog;
@@ -192,8 +191,10 @@ public class EditActivity extends BaseActivity implements VEdit.EditListener, Mu
 				startActivityForResult(new Intent(this, SettingActivity.class), REQUEST_CODE_SETTING);
 				break;
 			}
+			default:
+				return super.onOptionsItemSelected(item);
 		}
-		return super.onOptionsItemSelected(item);
+		return true;
 	}
 
 	private ChooseFileListener _ChooseFileListener;
