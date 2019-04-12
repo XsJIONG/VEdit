@@ -1,4 +1,4 @@
-package com.xsjiong.vedit;
+package com.xsjiong.vedit.ui;
 
 import android.app.Activity;
 import android.app.AlertDialog;
@@ -18,6 +18,7 @@ import android.support.design.widget.Snackbar;
 import android.view.View;
 import android.view.Window;
 import android.view.WindowManager;
+import com.xsjiong.vedit.Logs;
 
 import java.lang.reflect.Field;
 

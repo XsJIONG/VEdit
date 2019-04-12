@@ -1,4 +1,4 @@
-package com.xsjiong.vedit;
+package com.xsjiong.vedit.ui;
 
 import android.content.Context;
 import android.view.View;

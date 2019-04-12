@@ -17,6 +17,7 @@ import android.view.MenuItem;
 import android.view.SubMenu;
 import android.view.View;
 import com.xsjiong.vedit.scheme.VEditSchemeDark;
+import com.xsjiong.vedit.ui.UI;
 
 import java.io.File;
 import java.io.FileOutputStream;

@@ -6,6 +6,7 @@ import android.view.Gravity;
 import android.view.View;
 import android.widget.LinearLayout;
 import android.widget.TextView;
+import com.xsjiong.vedit.ui.UI;
 import fr.castorflex.android.smoothprogressbar.SmoothProgressBar;
 
 public class LoadingDialog extends FullScreenDialog {

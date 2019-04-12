@@ -17,7 +17,6 @@ import android.support.v7.widget.AppCompatTextView;
 import android.support.v7.widget.LinearLayoutCompat;
 import android.support.v7.widget.Toolbar;
 import android.text.TextUtils;
-import android.util.Log;
 import android.util.TypedValue;
 import android.view.Gravity;
 import android.view.Menu;
@@ -26,6 +25,9 @@ import android.view.View;
 import android.widget.ImageView;
 import android.widget.LinearLayout;
 import android.widget.TextView;
+import com.xsjiong.vedit.ui.ChooseFileFragment;
+import com.xsjiong.vedit.ui.DividerDrawable;
+import com.xsjiong.vedit.ui.UI;
 
 import java.io.File;
 import java.io.FileFilter;

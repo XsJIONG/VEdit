@@ -1,4 +1,4 @@
-package com.xsjiong.vedit;
+package com.xsjiong.vedit.ui;
 
 import android.graphics.Canvas;
 import android.graphics.ColorFilter;

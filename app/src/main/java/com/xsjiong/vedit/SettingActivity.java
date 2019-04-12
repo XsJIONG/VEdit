@@ -9,6 +9,8 @@ import android.support.v7.widget.AppCompatEditText;
 import android.text.InputType;
 import android.view.MenuItem;
 import android.view.View;
+import com.xsjiong.vedit.ui.SettingFragment;
+import com.xsjiong.vedit.ui.UI;
 
 public class SettingActivity extends BaseActivity {
 	public static final String CONFIG_CHANGED = "ConfigChanged";
