@@ -11,13 +11,15 @@ import java.util.ArrayList;
 public final class G {
 	public static final String T = "VEdit";
 	public static final int[] REFRESH_COLORS = {0xFF2196F3, 0xFFFBC02D, 0xFFFF5722, 0xFFE91E63, 0xFF7E57C2};
-	public static final boolean LOG_TIME = false;
+	public static final boolean LOG_TIME = true;
 	public static final Class<? extends VLexer>[] LEXERS = (Class<? extends VLexer>[]) new Class<?>[] {VJavaLexer.class, VJavaScriptLexer.class, VCLexer.class, VCppLexer.class, VNullLexer.class};
 	public static final String[] LEXER_NAMES = {"Java", "JavaScript", "C", "C++", "无"};
 	private static SharedPreferences S;
 	public static int _LEXER_ID;
 	public static int _TEXT_SIZE;
 	public static File _HOME_DIR;
+	public static boolean _SHOW_LINE_NUMBER;
+	public static boolean _NIGHT_THEME;
 	public static final ArrayList<File> _BOOKMARKS = new ArrayList<>();
 
 	static final void Initialize(Context cx) {
@@ -35,6 +37,8 @@ public final class G {
 			String[] all = str.split(File.pathSeparator);
 			for (int i = 0; i < all.length; i++) _BOOKMARKS.add(new File(all[i]));
 		}
+		_SHOW_LINE_NUMBER = S.getBoolean("show_line_number", true);
+		_NIGHT_THEME = S.getBoolean("night_theme", true);
 	}
 
 	public static void setLexerId(int id) {
@@ -47,6 +51,14 @@ public final class G {
 
 	public static void setHomeDir(File dir) {
 		S.edit().putString("home_dir", (_HOME_DIR = dir).getAbsolutePath()).apply();
+	}
+
+	public static void setShowLineNumber(boolean flag) {
+		S.edit().putBoolean("show_line_number", _SHOW_LINE_NUMBER = flag).apply();
+	}
+
+	public static void setNightTheme(boolean flag) {
+		S.edit().putBoolean("night_theme", _NIGHT_THEME = flag).apply();
 	}
 
 	public static void onBookmarksUpdate() {

@@ -6,8 +6,8 @@ import android.support.v7.widget.LinearLayoutCompat;
 import android.text.TextUtils;
 import android.view.View;
 import android.widget.HorizontalScrollView;
-import com.xsjiong.vedit.scheme.VEditScheme;
-import com.xsjiong.vedit.scheme.VEditSchemeLight;
+import com.xsjiong.vedit.theme.VEditTheme;
+import com.xsjiong.vedit.theme.VEditThemeLight;
 import com.xsjiong.vedit.ui.UI;
 import com.xsjiong.vlexer.VJavaLexer;
 import com.xsjiong.vlexer.VLexer;
@@ -44,7 +44,7 @@ public class MultiContentManager extends LinearLayoutCompat implements View.OnCl
 		ButtonScroller.setFillViewport(true);
 		ButtonScroller.addView(ButtonLayout, -1, MAX_HEIGHT);
 		Content = new VEdit(cx);
-		setColorScheme(VEditSchemeLight.getInstance());
+		setTheme(VEditThemeLight.getInstance());
 		addView(ButtonScroller, -1, MAX_HEIGHT);
 		addView(Content, -1, -1);
 		size = 0;
@@ -86,16 +86,16 @@ public class MultiContentManager extends LinearLayoutCompat implements View.OnCl
 		return Content;
 	}
 
-	public void setColorScheme(VEditScheme scheme) {
-		ButtonLayout.setBackgroundColor(scheme.getBackgroundColor());
-		Content.setColorScheme(scheme);
+	public void setTheme(VEditTheme theme) {
+		ButtonLayout.setBackgroundColor(theme.getBackgroundColor());
+		Content.setTheme(theme);
 		int ind = getIndex();
 		for (int i = 0; i < size; i++)
 			selectButton(getButton(i), i == ind);
 	}
 
-	public VEditScheme getColorScheme() {
-		return Content.getColorScheme();
+	public VEditTheme getTheme() {
+		return Content.getTheme();
 	}
 
 	public void closeExist(File f) {
@@ -182,8 +182,8 @@ public class MultiContentManager extends LinearLayoutCompat implements View.OnCl
 		if (file != null) data[pos].saved = true;
 		data[pos].setText(cs);
 		AppCompatButton button = new AppCompatButton(getContext());
-		button.setTextColor(Content.getColorScheme().getLineNumberColor());
-		button.setBackgroundColor(Content.getColorScheme().getBackgroundColor());
+		button.setTextColor(Content.getTheme().getLineNumberColor());
+		button.setBackgroundColor(Content.getTheme().getBackgroundColor());
 		button.setEllipsize(TextUtils.TruncateAt.END);
 		button.setText(data[pos].getDisplay());
 		button.setPadding(0, 0, 0, 0);
@@ -236,11 +236,11 @@ public class MultiContentManager extends LinearLayoutCompat implements View.OnCl
 	public void selectButton(AppCompatButton button, boolean selected) {
 		if (button == null) return;
 		if (selected) {
-			button.setBackgroundColor(Content.getColorScheme().getLineNumberColor());
-			button.setTextColor(Content.getColorScheme().getBackgroundColor());
+			button.setBackgroundColor(Content.getTheme().getLineNumberColor());
+			button.setTextColor(Content.getTheme().getBackgroundColor());
 		} else {
-			button.setBackgroundColor(Content.getColorScheme().getBackgroundColor());
-			button.setTextColor(Content.getColorScheme().getLineNumberColor());
+			button.setBackgroundColor(Content.getTheme().getBackgroundColor());
+			button.setTextColor(Content.getTheme().getLineNumberColor());
 		}
 	}
 

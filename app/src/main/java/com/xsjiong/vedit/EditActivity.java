@@ -16,7 +16,8 @@ import android.view.Menu;
 import android.view.MenuItem;
 import android.view.SubMenu;
 import android.view.View;
-import com.xsjiong.vedit.scheme.VEditSchemeDark;
+import com.xsjiong.vedit.theme.VEditThemeDark;
+import com.xsjiong.vedit.theme.VEditThemeLight;
 import com.xsjiong.vedit.ui.UI;
 
 import java.io.File;
@@ -44,12 +45,12 @@ public class EditActivity extends BaseActivity implements VEdit.EditListener, Mu
 		Container.setOrientation(LinearLayoutCompat.VERTICAL);
 		Container.addView(Title);
 		ContentManager = new MultiContentManager(this);
-		ContentManager.setColorScheme(VEditSchemeDark.getInstance());
+		ContentManager.setTheme(VEditThemeDark.getInstance());
 		ContentManager.setEditDataClickListener(this);
 		Content = ContentManager.getContent();
 		Content.setTypeface(Typeface.createFromAsset(getAssets(), "FiraCode-Medium.ttf"));
-		Content.setTextSize(TypedValue.COMPLEX_UNIT_SP, G._TEXT_SIZE);
 		Content.setEditListener(this);
+		onSettingChanged();
 		Container.addView(ContentManager, -1, -1);
 		setContentView(Container);
 	}
@@ -220,6 +221,8 @@ public class EditActivity extends BaseActivity implements VEdit.EditListener, Mu
 	private void onSettingChanged() {
 		Content.setLexer(G.newLexer(G._LEXER_ID));
 		Content.setTextSize(TypedValue.COMPLEX_UNIT_SP, G._TEXT_SIZE);
+		Content.setShowLineNumber(G._SHOW_LINE_NUMBER);
+		ContentManager.setTheme(G._NIGHT_THEME ? VEditThemeDark.getInstance() : VEditThemeLight.getInstance());
 	}
 
 	private synchronized void setChooseFileListener(ChooseFileListener listener) {
@@ -250,10 +253,10 @@ public class EditActivity extends BaseActivity implements VEdit.EditListener, Mu
 				ContentManager.redo();
 				break;
 			case 2:
-				if (ContentManager.getColorScheme() instanceof VEditSchemeLight)
-					ContentManager.setColorScheme(VEditSchemeDark.getInstance());
+				if (ContentManager.getColorScheme() instanceof VEditThemeLight)
+					ContentManager.setTheme(VEditThemeDark.getInstance());
 				else
-					ContentManager.setColorScheme(VEditSchemeLight.getInstance());
+					ContentManager.setTheme(VEditThemeLight.getInstance());
 				break;
 			case 3:
 				if (Content.isShowLineNumber()) {

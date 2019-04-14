@@ -9,8 +9,10 @@ import android.support.v7.widget.AppCompatEditText;
 import android.text.InputType;
 import android.view.MenuItem;
 import android.view.View;
+import android.widget.CheckBox;
 import com.xsjiong.vedit.ui.SettingFragment;
 import com.xsjiong.vedit.ui.UI;
+import com.xsjiong.vedit.util.IntReference;
 
 public class SettingActivity extends BaseActivity {
 	public static final String CONFIG_CHANGED = "ConfigChanged";
@@ -62,17 +64,43 @@ public class SettingActivity extends BaseActivity {
 				Dialog.show();
 			}
 		});
+		final IntReference __CHOSE_ITEM = new IntReference(G._LEXER_ID);
 		Q.addSimpleItem("切换高亮", "切换编辑器所使用的高亮方式").setOnClickListener(new View.OnClickListener() {
 			@Override
 			public void onClick(View v) {
 				new AlertDialog.Builder(SettingActivity.this).setTitle("切换高亮").setSingleChoiceItems(G.LEXER_NAMES, G._LEXER_ID, new DialogInterface.OnClickListener() {
 					@Override
 					public void onClick(DialogInterface dialog, int which) {
-						if (which == G._LEXER_ID) return;
-						G.setLexerId(which);
+						__CHOSE_ITEM.val = which;
+					}
+				}).setPositiveButton("确定", new DialogInterface.OnClickListener() {
+					@Override
+					public void onClick(DialogInterface dialog, int which) {
+						if (__CHOSE_ITEM.val == G._LEXER_ID) return;
+						G.setLexerId(__CHOSE_ITEM.val);
 						onConfigChanged();
 					}
-				}).setCancelable(true).setPositiveButton("取消", null).show();
+				}).setNegativeButton("取消", null).setCancelable(true).show();
+			}
+		});
+		final SettingFragment.CheckBoxItem __SHOW_LINE_NUMBER = Q.addCheckBoxItem("显示行号", "设定编辑器是否显示行号");
+		__SHOW_LINE_NUMBER.setChecked(G._SHOW_LINE_NUMBER);
+		__SHOW_LINE_NUMBER.setOnClickListener(new View.OnClickListener() {
+			@Override
+			public void onClick(View v) {
+				if (__SHOW_LINE_NUMBER.isChecked() == G._SHOW_LINE_NUMBER) return;
+				G.setShowLineNumber(__SHOW_LINE_NUMBER.isChecked());
+				onConfigChanged();
+			}
+		});
+		final SettingFragment.CheckBoxItem __NIGHT_THEME = Q.addCheckBoxItem("夜间主题", "设定编辑器是否使用夜间主题");
+		__NIGHT_THEME.setChecked(G._NIGHT_THEME);
+		__NIGHT_THEME.setOnClickListener(new View.OnClickListener() {
+			@Override
+			public void onClick(View v) {
+				if (__NIGHT_THEME.isChecked() == G._NIGHT_THEME) return;
+				G.setNightTheme(__NIGHT_THEME.isChecked());
+				onConfigChanged();
 			}
 		});
 		setContentView(Q.getView());

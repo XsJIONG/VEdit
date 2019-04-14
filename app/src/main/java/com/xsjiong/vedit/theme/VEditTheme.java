@@ -1,8 +1,8 @@
-package com.xsjiong.vedit.scheme;
+package com.xsjiong.vedit.theme;
 
 import com.xsjiong.vlexer.VLexer;
 
-public abstract class VEditScheme {
+public abstract class VEditTheme {
 	protected int[] C = new int[VLexer.TOTAL_COUNT];
 	protected int _SplitLine, _Selection, _CursorLine, _Cursor, _CursorGlass, _BackgroundColor, _LineNumberColor, _SlideBarColor;
 

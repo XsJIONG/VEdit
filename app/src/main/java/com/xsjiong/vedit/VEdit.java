@@ -3,7 +3,6 @@ package com.xsjiong.vedit;
 import android.content.ClipData;
 import android.content.ClipboardManager;
 import android.content.Context;
-import android.database.Cursor;
 import android.graphics.*;
 import android.os.Bundle;
 import android.os.Handler;
@@ -15,8 +14,8 @@ import android.util.TypedValue;
 import android.view.*;
 import android.view.inputmethod.*;
 import android.widget.OverScroller;
-import com.xsjiong.vedit.scheme.VEditScheme;
-import com.xsjiong.vedit.scheme.VEditSchemeDark;
+import com.xsjiong.vedit.theme.VEditTheme;
+import com.xsjiong.vedit.theme.VEditThemeDark;
 import com.xsjiong.vlexer.VJavaLexer;
 import com.xsjiong.vlexer.VLexer;
 
@@ -75,7 +74,7 @@ public class VEdit extends View {
 	private InputMethodManager _IMM;
 	private long LastClickTime = 0, LastInsertCharTime = 0;
 	private int _ComposingStart = -1;
-	private VEditScheme _Scheme = VEditSchemeDark.getInstance();
+	private VEditTheme _Theme = VEditThemeDark.getInstance();
 	private VLexer _Lexer = new VJavaLexer();
 	private Cursor _Cursor = new GlassCursor(this);
 	private float _CursorHorizonOffset;
@@ -126,7 +125,7 @@ public class VEdit extends View {
 		E[2] = 1; // 来自我自己把全部删了之后的E信息
 		_TextLength = 0;
 		_SlideBar = new MaterialSlideBar(this);
-		applyColorScheme();
+		applyTheme();
 		setVerticalScrollBarEnabled(true);
 	}
 
@@ -305,14 +304,14 @@ public class VEdit extends View {
 		onFontChange();
 	}
 
-	public void setColorScheme(VEditScheme scheme) {
-		this._Scheme = scheme;
-		applyColorScheme();
+	public void setTheme(VEditTheme scheme) {
+		this._Theme = scheme;
+		applyTheme();
 		invalidate();
 	}
 
-	public VEditScheme getColorScheme() {
-		return _Scheme;
+	public VEditTheme getTheme() {
+		return _Theme;
 	}
 
 	public void setTABSpaceCount(int count) {
@@ -1084,11 +1083,11 @@ public class VEdit extends View {
 		int i, en;
 		int tot;
 		if (_ShowLineNumber) {
-			ColorPaint.setColor(_Scheme.getSplitLineColor());
+			ColorPaint.setColor(_Theme.getSplitLineColor());
 			canvas.drawRect(LineNumberWidth, getScrollY(), LineNumberWidth + LINENUM_SPLIT_WIDTH, getScrollY() + getHeight(), ColorPaint);
 		}
 		int parseTot = _Lexer.findPart(E[line]);
-		int parseTarget = _Lexer.getPartStart(parseTot);
+		int parseTarget = _Lexer.DS[parseTot];
 		float SStartLineEnd = -1;
 //		Log.i(T, _Lexer.getPartCount() + " " + _Lexer.getTypeName(_Lexer.getPartType(_Lexer.getPartCount())));
 		LineDraw:
@@ -1096,7 +1095,7 @@ public class VEdit extends View {
 			if (_ShowLineNumber)
 				canvas.drawText(Integer.toString(line), LineNumberWidth, y, LineNumberPaint);
 			if (showCursor && _CursorLine == line) {
-				ColorPaint.setColor(_Scheme.getSelectionColor());
+				ColorPaint.setColor(_Theme.getSelectionColor());
 				canvas.drawRect(xo - _ContentLeftPadding, y - YOffset - _LinePaddingTop, right, y + TextHeight - YOffset + _LinePaddingBottom, ColorPaint);
 			}
 			i = E[line];
@@ -1110,11 +1109,11 @@ public class VEdit extends View {
 					}
 					XStart = wtmp;
 				}
-			if (parseTot <= _Lexer.getPartCount()) {
-				while (i >= parseTarget && parseTot <= _Lexer.getPartCount())
-					parseTarget = _Lexer.getPartStart(++parseTot);
+			if (parseTot <= _Lexer.DS[0]) {
+				while (i >= parseTarget && parseTot <= _Lexer.DS[0])
+					parseTarget = _Lexer.DS[++parseTot];
 				if (parseTot != 0)
-					ContentPaint.setColor(_Scheme.getTypeColor(_Lexer.getPartType(parseTot - 1)));
+					ContentPaint.setColor(_Theme.getTypeColor(_Lexer.D[parseTot - 1]));
 			}
 			tot = 0;
 			for (x = XStart; i < en && x <= right; i++) {
@@ -1122,9 +1121,9 @@ public class VEdit extends View {
 					canvas.drawText(TMP, 0, tot, XStart, y, ContentPaint);
 					XStart = x;
 					tot = 0;
-					ContentPaint.setColor(_Scheme.getTypeColor(_Lexer.getPartType(parseTot)));
+					ContentPaint.setColor(_Theme.getTypeColor(_Lexer.D[parseTot]));
 					++parseTot;
-					if (parseTot <= _Lexer.getPartCount()) parseTarget = _Lexer.getPartStart(parseTot);
+					if (parseTot <= _Lexer.DS[0]) parseTarget = _Lexer.DS[parseTot];
 				}
 				if ((TMP[tot] = S[i]) == '\t') {
 					canvas.drawText(TMP, 0, tot, XStart, y, ContentPaint);
@@ -1139,7 +1138,7 @@ public class VEdit extends View {
 			if (showSelecting) {
 				if (line == _SStartLine) SStartLineEnd = x;
 				else if (line > _SStartLine && line < _SEndLine) {
-					ColorPaint.setColor(_Scheme.getSelectionColor());
+					ColorPaint.setColor(_Theme.getSelectionColor());
 					canvas.drawRect(xo, y - YOffset - _LinePaddingTop, x, y - YOffset + TextHeight + _LinePaddingBottom, ColorPaint);
 				}
 			}
@@ -1147,7 +1146,7 @@ public class VEdit extends View {
 				break;
 		}
 		if (showCursor) {
-			ColorPaint.setColor(_Scheme.getCursorLineColor());
+			ColorPaint.setColor(_Theme.getCursorLineColor());
 			ColorPaint.setStrokeWidth(_CursorWidth);
 			float sty = LineHeight * _CursorLine;
 			canvas.drawLine(xo + _CursorHorizonOffset, sty - LineHeight, xo + _CursorHorizonOffset, sty, ColorPaint);
@@ -1155,11 +1154,11 @@ public class VEdit extends View {
 		} else if (showSelecting) {
 			float sty = LineHeight * _SStartLine;
 			if (_SStartLine == _SEndLine) {
-				ColorPaint.setColor(_Scheme.getSelectionColor());
+				ColorPaint.setColor(_Theme.getSelectionColor());
 				canvas.drawRect(xo + _SStartHorizonOffset, sty - LineHeight, xo + _SEndHorizonOffset, sty, ColorPaint);
 			} else {
 				float eny = LineHeight * _SEndLine;
-				ColorPaint.setColor(_Scheme.getSelectionColor());
+				ColorPaint.setColor(_Theme.getSelectionColor());
 				if (SStartLineEnd != -1)
 					canvas.drawRect(xo + _SStartHorizonOffset, sty - LineHeight, SStartLineEnd, sty, ColorPaint);
 				canvas.drawRect(xo, eny - LineHeight, xo + _SEndHorizonOffset, eny, ColorPaint);
@@ -1183,10 +1182,10 @@ public class VEdit extends View {
 		return _EditListener.onEdit(action);
 	}
 
-	private void applyColorScheme() {
-		setBackgroundColor(_Scheme.getBackgroundColor());
+	private void applyTheme() {
+		setBackgroundColor(_Theme.getBackgroundColor());
 		_Cursor.setHeight(TextHeight);
-		LineNumberPaint.setColor(_Scheme.getLineNumberColor());
+		LineNumberPaint.setColor(_Theme.getLineNumberColor());
 		_SlideBar.onSchemeChange();
 	}
 
@@ -1625,7 +1624,7 @@ public class VEdit extends View {
 
 		@Override
 		public void onSchemeChange() {
-			mp.setColor(parent._Scheme.getSlideBarColor());
+			mp.setColor(parent._Theme.getSlideBarColor());
 		}
 
 		@Override
@@ -1720,33 +1719,33 @@ public class VEdit extends View {
 			c2 = Bitmap.createBitmap(ddd, ddd, Bitmap.Config.ARGB_8888);
 			Canvas canvas = new Canvas(c0);
 			canvas.translate(radius, 0);
-			mp.setColor(P._Scheme.getCursorColor());
+			mp.setColor(P._Theme.getCursorColor());
 			canvas.drawPath(path, mp);
 			canvas.drawCircle(0, h - radius, radius, mp);
 			mp.setXfermode(new PorterDuffXfermode(PorterDuff.Mode.CLEAR));
 			canvas.drawCircle(0, h - radius, gradius, mp);
 			mp.setXfermode(null);
-			mp.setColor(P._Scheme.getCursorGlassColor());
+			mp.setColor(P._Theme.getCursorGlassColor());
 			canvas.drawCircle(0, h - radius, gradius, mp);
 
 			canvas = new Canvas(c1);
-			mp.setColor(P._Scheme.getCursorColor());
+			mp.setColor(P._Theme.getCursorColor());
 			canvas.drawCircle(radius, radius, radius, mp);
 			canvas.drawRect(radius, 0, radius * 2, radius, mp);
 			mp.setXfermode(new PorterDuffXfermode(PorterDuff.Mode.CLEAR));
 			canvas.drawCircle(radius, radius, gradius, mp);
 			mp.setXfermode(null);
-			mp.setColor(P._Scheme.getCursorGlassColor());
+			mp.setColor(P._Theme.getCursorGlassColor());
 			canvas.drawCircle(radius, radius, gradius, mp);
 
 			canvas = new Canvas(c2);
-			mp.setColor(P._Scheme.getCursorColor());
+			mp.setColor(P._Theme.getCursorColor());
 			canvas.drawCircle(radius, radius, radius, mp);
 			canvas.drawRect(0, 0, radius, radius, mp);
 			mp.setXfermode(new PorterDuffXfermode(PorterDuff.Mode.CLEAR));
 			canvas.drawCircle(radius, radius, gradius, mp);
 			mp.setXfermode(null);
-			mp.setColor(P._Scheme.getCursorGlassColor());
+			mp.setColor(P._Theme.getCursorGlassColor());
 			canvas.drawCircle(radius, radius, gradius, mp);
 		}
 
