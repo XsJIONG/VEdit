@@ -3,6 +3,7 @@ package com.xsjiong.vedit;
 import android.content.ClipData;
 import android.content.ClipboardManager;
 import android.content.Context;
+import android.database.Cursor;
 import android.graphics.*;
 import android.os.Bundle;
 import android.os.Handler;
@@ -24,16 +25,17 @@ import java.net.URL;
 import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
+import java.util.TimerTask;
 
 import static com.xsjiong.vedit.G.T;
 
-public class VEdit extends View {
+public class VEdit extends View implements Runnable {
 	// --------------------
 	// -----Constants------
 	// --------------------
 
-	public static final int DOUBLE_CLICK_INTERVAL = 200, MERGE_ACTIONS_INTERVAL = 250;
-	public static final int LINENUM_SPLIT_WIDTH = 7;
+	public static final int DOUBLE_CLICK_INTERVAL = 200, MERGE_ACTIONS_INTERVAL = 250, BLINK_INTERVAL = 700;
+	public static final int LINE_NUMBER_SPLIT_WIDTH = 7;
 	public static final int EXPAND_SIZE = 64;
 	public static final int EMPTY_CHAR_WIDTH = 10;
 	public static final int SCROLL_TO_CURSOR_EXTRA = 20;
@@ -85,6 +87,10 @@ public class VEdit extends View {
 	private SlideBar _SlideBar;
 	private EditActionStack _EditActionStack = new EditActionStack(this, EDIT_ACTION_STACK_SIZE);
 	private EditListener _EditListener = null;
+	private boolean _BlinkCursor;
+	private boolean _ShowCursorLine;
+	private final byte[] _BlinkLock = new byte[0];
+	private Handler _Handler = new Handler();
 
 	// -----------------------
 	// -----Constructors------
@@ -127,11 +133,33 @@ public class VEdit extends View {
 		_SlideBar = new MaterialSlideBar(this);
 		applyTheme();
 		setVerticalScrollBarEnabled(true);
+		setBlinkCursor(true);
 	}
 
 	// ------------------
 	// -----Methods------
 	// ------------------
+
+	public void setBlinkCursor(boolean flag) {
+		synchronized (_BlinkLock) {
+			if (_BlinkCursor == flag) return;
+			if (_BlinkCursor = flag)
+				_Handler.post(this);
+			else {
+				_Handler.removeCallbacks(this);
+				_Handler.post(new Runnable() {
+					@Override
+					public void run() {
+						_ShowCursorLine = true;
+					}
+				});
+			}
+		}
+	}
+
+	public boolean isBlinkCursor() {
+		return _BlinkCursor;
+	}
 
 	public void setEditListener(EditListener listener) {
 		this._EditListener = listener;
@@ -615,7 +643,7 @@ public class VEdit extends View {
 	public void makeCursorVisible(int line, int column) {
 		int pos = E[line] + column;
 		makeLineVisible(line);
-		float sum = (_ShowLineNumber ? (LineNumberWidth + LINENUM_SPLIT_WIDTH) : 0) + _ContentLeftPadding;
+		float sum = (_ShowLineNumber ? (LineNumberWidth + LINE_NUMBER_SPLIT_WIDTH) : 0) + _ContentLeftPadding;
 		for (int i = E[line]; i < pos; i++)
 			sum += _CharWidths[S[i]];
 		if (sum - _CursorWidth / 2 < getScrollX()) {
@@ -845,7 +873,7 @@ public class VEdit extends View {
 
 	public int[] getCursorByPosition(float x, float y) {
 		x -= _ContentLeftPadding;
-		if (_ShowLineNumber) x -= (LineNumberWidth + LINENUM_SPLIT_WIDTH);
+		if (_ShowLineNumber) x -= (LineNumberWidth + LINE_NUMBER_SPLIT_WIDTH);
 		int[] rret = new int[2];
 		rret[0] = Math.min((int) Math.ceil(y / LineHeight), E[0] - 1);
 		if (rret[0] < 1) rret[0] = 1;
@@ -883,6 +911,16 @@ public class VEdit extends View {
 	// -----Override Methods-----
 	// --------------------------
 
+
+	@Override
+	public void run() {
+		synchronized (_BlinkLock) {
+			if (!_BlinkCursor) return;
+			_ShowCursorLine = !_ShowCursorLine;
+			postInvalidate();
+			_Handler.postDelayed(this, BLINK_INTERVAL);
+		}
+	}
 
 	@Override
 	public boolean onKeyShortcut(int keyCode, KeyEvent event) {
@@ -1075,7 +1113,7 @@ public class VEdit extends View {
 		final boolean showCursor = (!showSelecting) && _Editable;
 		final float bottom = getScrollY() + getHeight() + YOffset;
 		final int right = getScrollX() + getWidth();
-		final float xo = (_ShowLineNumber ? LineNumberWidth + LINENUM_SPLIT_WIDTH : 0) + _ContentLeftPadding;
+		final float xo = (_ShowLineNumber ? LineNumberWidth + LINE_NUMBER_SPLIT_WIDTH : 0) + _ContentLeftPadding;
 
 		int line = Math.max((int) (getScrollY() / LineHeight) + 1, 1);
 		float y = (line - 1) * LineHeight + YOffset + _LinePaddingTop;
@@ -1084,7 +1122,7 @@ public class VEdit extends View {
 		int tot;
 		if (_ShowLineNumber) {
 			ColorPaint.setColor(_Theme.getSplitLineColor());
-			canvas.drawRect(LineNumberWidth, getScrollY(), LineNumberWidth + LINENUM_SPLIT_WIDTH, getScrollY() + getHeight(), ColorPaint);
+			canvas.drawRect(LineNumberWidth, getScrollY(), LineNumberWidth + LINE_NUMBER_SPLIT_WIDTH, getScrollY() + getHeight(), ColorPaint);
 		}
 		int parseTot = _Lexer.findPart(E[line]);
 		int parseTarget = _Lexer.DS[parseTot];
@@ -1149,7 +1187,8 @@ public class VEdit extends View {
 			ColorPaint.setColor(_Theme.getCursorLineColor());
 			ColorPaint.setStrokeWidth(_CursorWidth);
 			float sty = LineHeight * _CursorLine;
-			canvas.drawLine(xo + _CursorHorizonOffset, sty - LineHeight, xo + _CursorHorizonOffset, sty, ColorPaint);
+			if (_ShowCursorLine)
+				canvas.drawLine(xo + _CursorHorizonOffset, sty - LineHeight, xo + _CursorHorizonOffset, sty, ColorPaint);
 			_Cursor.draw(canvas, xo + _CursorHorizonOffset, sty, Cursor.TYPE_NORMAL);
 		} else if (showSelecting) {
 			float sty = LineHeight * _SStartLine;
@@ -1192,7 +1231,7 @@ public class VEdit extends View {
 	private byte getDraggingCursor(float x, float y) {
 		final float ori = x;
 		x -= _ContentLeftPadding;
-		if (_ShowLineNumber) x -= (LineNumberWidth + LINENUM_SPLIT_WIDTH);
+		if (_ShowLineNumber) x -= (LineNumberWidth + LINE_NUMBER_SPLIT_WIDTH);
 		if (isRangeSelecting()) {
 			if (_Cursor.isTouched(x - _SStartHorizonOffset, y - LineHeight * _SStartLine, Cursor.TYPE_LEFT)) {
 				_lastX = ori;
