@@ -140,6 +140,10 @@ public class VEdit extends View implements Runnable {
 	// -----Methods------
 	// ------------------
 
+	public boolean isEditable() {
+		return Editable;
+	}
+
 	public void setSelectListener(SelectListener listener) {
 		_SelectListener = listener;
 	}
