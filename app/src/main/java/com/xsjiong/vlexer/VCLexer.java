@@ -16,10 +16,6 @@ public class VCLexer extends VCommonLexer {
 	public VCLexer() {
 	}
 
-	public VCLexer(char[] cs) {
-		super(cs);
-	}
-
 	@Override
 	protected short getWordType(int st, int en) {
 		if (isKeyword(S, st, P)) return TYPE_KEYWORD;

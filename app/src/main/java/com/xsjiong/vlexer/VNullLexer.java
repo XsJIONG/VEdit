@@ -15,8 +15,4 @@ public class VNullLexer extends VLexer {
 
 	public VNullLexer() {
 	}
-
-	public VNullLexer(char[] cs) {
-		super(cs);
-	}
 }

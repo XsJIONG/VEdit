@@ -21,9 +21,10 @@ import com.xsjiong.vedit.theme.VEditThemeLight;
 import com.xsjiong.vedit.ui.UI;
 
 import java.io.File;
+import java.io.FileInputStream;
 import java.io.FileOutputStream;
 
-public class EditActivity extends BaseActivity implements VEdit.EditListener, MultiContentManager.EditDataClickListener {
+public class EditActivity extends BaseActivity implements VEdit.EditListener, MultiContentManager.EditDataClickListener, C {
 	public static final int REQUEST_CODE_SETTING = 1;
 	public static final int REQUEST_CODE_CHOOSE_FILE = 2;
 
@@ -31,6 +32,7 @@ public class EditActivity extends BaseActivity implements VEdit.EditListener, Mu
 	private MultiContentManager ContentManager;
 	private VEdit Content;
 	private Toolbar Title;
+	private LoadingDialog Loading;
 
 	@Override
 	protected void onCreate(Bundle savedInstanceState) {
@@ -49,10 +51,13 @@ public class EditActivity extends BaseActivity implements VEdit.EditListener, Mu
 		ContentManager.setEditDataClickListener(this);
 		Content = ContentManager.getContent();
 		Content.setTypeface(Typeface.createFromAsset(getAssets(), "FiraCode-Medium.ttf"));
+		Content.setAutoParse(false);
 		Content.setEditListener(this);
 		onSettingChanged();
 		Container.addView(ContentManager, -1, -1);
 		setContentView(Container);
+
+		Loading = new LoadingDialog(this);
 	}
 
 	@Override
@@ -72,7 +77,7 @@ public class EditActivity extends BaseActivity implements VEdit.EditListener, Mu
 
 	private final boolean requestStoragePermissions() {
 		if (isAllPermissionsGranted(_STORAGE_PERMISSIONS)) return false;
-		requestPermissions(_STORAGE_PERMISSIONS, _STORAGE_DESC);
+		getPermissions(_STORAGE_PERMISSIONS, _STORAGE_DESC, false);
 		return true;
 	}
 
@@ -114,20 +119,20 @@ public class EditActivity extends BaseActivity implements VEdit.EditListener, Mu
 
 	private void SaveTab(final MultiContentManager.EditData data, final Runnable action) {
 		if (requestStoragePermissions()) return;
-		if (data.file == null) {
+		if (data.getFile() == null) {
 			setChooseFileListener(new ChooseFileListener() {
 				@Override
 				public void onChoose(File f) {
-					data.file = f;
-					ContentManager.onEditDataUpdated(data.index);
+					data.setFile(f);
 					SaveTab(data, action);
+					//ContentManager.onEditDataUpdated(data.index);
 				}
 			});
 			ChooseFileActivity.createFile(this, REQUEST_CODE_CHOOSE_FILE);
 			return;
 		}
 		try {
-			FileOutputStream out = new FileOutputStream(data.file);
+			FileOutputStream out = new FileOutputStream(data.getFile());
 			out.write(Content.getText().getBytes());
 			out.close();
 			data.saved = true;
@@ -149,8 +154,28 @@ public class EditActivity extends BaseActivity implements VEdit.EditListener, Mu
 		sm.add(0, 2, 0, "打开");
 		sm.add(0, 3, 0, "保存");
 		sm.add(0, 4, 0, "另存为");
+		sm.add(0, 6, 0, "Debug");
 		menu.add(0, 5, 0, R.string.title_settings).setIcon(UI.tintDrawable(this, R.mipmap.icon_settings, UI.AccentColor)).setShowAsActionFlags(flag);
 		return true;
+	}
+
+	private void showLoading(final String msg) {
+		UI.onUI(new Runnable() {
+			@Override
+			public void run() {
+				Loading.setMessage(msg);
+				if (!Loading.isShowing()) Loading.show();
+			}
+		});
+	}
+
+	private void dismissLoading() {
+		UI.onUI(new Runnable() {
+			@Override
+			public void run() {
+				Loading.dismiss();
+			}
+		});
 	}
 
 	@Override
@@ -163,8 +188,33 @@ public class EditActivity extends BaseActivity implements VEdit.EditListener, Mu
 				if (requestStoragePermissions()) break;
 				setChooseFileListener(new ChooseFileListener() {
 					@Override
-					public void onChoose(File f) {
-						ContentManager.addTab(f);
+					public void onChoose(final File f) {
+						showLoading("加载文件中...");
+						new Thread() {
+							@Override
+							public void run() {
+								try {
+									final char[] s = new String(IO.Read(new FileInputStream(f))).toCharArray();
+									UI.onUI(new Runnable() {
+										@Override
+										public void run() {
+											ContentManager.addTab(s, f);
+											// 好很好！三重嵌套nmsl
+											new Thread() {
+												@Override
+												public void run() {
+													Content.parseAll();
+													dismissLoading();
+												}
+											}.start();
+										}
+									});
+								} catch (Throwable t) {
+									dismissLoading();
+									UI.showError(EditActivity.this, t);
+								}
+							}
+						}.start();
 					}
 				});
 				ChooseFileActivity.chooseFile(this, REQUEST_CODE_CHOOSE_FILE);
@@ -181,7 +231,7 @@ public class EditActivity extends BaseActivity implements VEdit.EditListener, Mu
 					public void onChoose(File f) {
 						MultiContentManager.EditData data = ContentManager.getCurrentEditData();
 						ContentManager.closeExist(f);
-						data.file = f;
+						data.setFile(f);
 						ContentManager.onEditDataUpdated(data.index);
 						SaveTab(data, null);
 					}
@@ -192,6 +242,9 @@ public class EditActivity extends BaseActivity implements VEdit.EditListener, Mu
 			case 5: {
 				startActivityForResult(new Intent(this, SettingActivity.class), REQUEST_CODE_SETTING);
 				break;
+			}
+			case 6:{
+				new AlertDialog.Builder(this).setTitle("Debug").setMessage(Content.getLexer().getStateString()).setPositiveButton("确定", null).setCancelable(true).show();
 			}
 			default:
 				return super.onOptionsItemSelected(item);
@@ -219,10 +272,10 @@ public class EditActivity extends BaseActivity implements VEdit.EditListener, Mu
 	}
 
 	private void onSettingChanged() {
-		Content.setLexer(G.newLexer(G._LEXER_ID));
 		Content.setTextSize(TypedValue.COMPLEX_UNIT_SP, G._TEXT_SIZE);
 		Content.setShowLineNumber(G._SHOW_LINE_NUMBER);
 		ContentManager.setTheme(G._NIGHT_THEME ? VEditThemeDark.getInstance() : VEditThemeLight.getInstance());
+		ContentManager.onEditDataUpdated(ContentManager.getIndex());
 	}
 
 	private synchronized void setChooseFileListener(ChooseFileListener listener) {

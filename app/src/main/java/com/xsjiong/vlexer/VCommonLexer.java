@@ -4,10 +4,6 @@ public abstract class VCommonLexer extends VLexer {
 	public VCommonLexer() {
 	}
 
-	public VCommonLexer(char[] s) {
-		super(s);
-	}
-
 	protected short getNext() {
 		ReadSpaces();
 		if (P == L) return TYPE_EOF;
@@ -191,6 +187,6 @@ public abstract class VCommonLexer extends VLexer {
 		}
 		return UNRESOLVED_TYPE;
 		// 还是不要抛出错误吧——要是用户从外面粘贴过来乱码你就崩溃了是几个意思?
-//		throw icon_create RuntimeException();
+//		throw new RuntimeException();
 	}
 }

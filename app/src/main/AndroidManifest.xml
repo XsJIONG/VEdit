@@ -26,5 +26,7 @@
 		<activity android:name=".ChooseFileActivity"
 		          android:theme="@style/AppThemeNoTitle"
 		          android:launchMode="singleTask"/>
+		<activity android:name=".CrashActivity"
+		          android:label="崩溃啦"/>
 	</application>
 </manifest>

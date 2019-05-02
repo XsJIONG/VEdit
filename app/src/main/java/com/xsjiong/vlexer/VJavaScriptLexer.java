@@ -8,17 +8,13 @@ public class VJavaScriptLexer extends VJavaLexer {
 	public Trie getKeywordTrie() {
 		if (KEYWORD_TRIE == null)
 			KEYWORD_TRIE = Trie.BuildTrie(
-					"break", "case", "continue", "default", "delete", "do", "else", "for", "function", "if", "in", "let", "icon_create", "return", "switch",
+					"break", "case", "continue", "default", "delete", "do", "else", "for", "function", "if", "in", "let", "new", "return", "switch",
 					"this", "typeof", "var", "void", "while", "with", "yield", "catch", "const", "debugger", "finally", "instanceof", "throw", "try"
 			);
 		return KEYWORD_TRIE;
 	}
 
 	public VJavaScriptLexer() {
-	}
-
-	public VJavaScriptLexer(char[] cs) {
-		super(cs);
 	}
 
 	@Override

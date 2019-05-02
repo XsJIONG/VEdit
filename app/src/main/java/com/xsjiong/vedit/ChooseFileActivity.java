@@ -76,6 +76,7 @@ public class ChooseFileActivity extends BaseActivity implements ChooseFileFragme
 		Content = new LinearLayoutCompat(this);
 		Content.setOrientation(LinearLayoutCompat.VERTICAL);
 		Content.addView(Title);
+
 		if (!(_CREATE = intent.getBooleanExtra(TAG_CREATE_FILE, false)))
 			_DIRECTORY = intent.getBooleanExtra(TAG_CHOOSE_DIR, false);
 		if (_CREATE) {
@@ -277,7 +278,7 @@ public class ChooseFileActivity extends BaseActivity implements ChooseFileFragme
 
 	@Override
 	public void onChange(File f) {
-		Title.setTitle(f.getPath());
+		setTitle(f.getPath());
 	}
 
 	@Override

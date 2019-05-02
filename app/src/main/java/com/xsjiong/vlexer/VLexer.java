@@ -14,13 +14,27 @@ public abstract class VLexer {
 	public short[] D = new short[EXPAND_SIZE + 1];
 	public int[] DS = new int[EXPAND_SIZE + 1];
 	public int L;
+	private boolean _AutoParse = true;
+	private boolean _Parsed = false;
 
 	public VLexer() {
 	}
 
-	// Notice that we don't copy the array here for higher speed
-	public VLexer(char[] s) {
-		setText(s);
+	public final void setAutoParse(boolean flag) {
+		if (_AutoParse = flag)
+			parseAll();
+	}
+
+	public final boolean isAutoParse() {
+		return _AutoParse;
+	}
+
+	public final boolean isParsed() {
+		return _Parsed;
+	}
+
+	public final void ensureParsed() {
+		if (!_Parsed) parseAll();
 	}
 
 	public final void copyFrom(VLexer a) {
@@ -63,14 +77,16 @@ public abstract class VLexer {
 			return;
 		}
 		int part = findPart(pos);
-		if (pos == DS[part]) part--;
-		if (part == 0) return;
+//		if (pos == DS[part]) part--;
+		if (part <= 0) {
+			for (int i = 1; i <= DS[0]; i++) DS[i] += len;
+			return;
+		}
 		this.P = Math.min(DS[part], pos);
 //		int en = DE[part] + len;
 		int afterLen = DS[0] - part;
 		short[] afterD = new short[afterLen];
 		int[] afterDS = new int[afterLen];
-		int[] afterDE = new int[afterLen];
 		if (afterLen != 0) {
 			System.arraycopy(D, part + 1, afterD, 0, afterLen);
 			for (int i = 0; i < afterLen; i++)
@@ -79,7 +95,6 @@ public abstract class VLexer {
 		DS[0] = Math.max(part - 1, 0);
 		short type;
 		int i = 0;
-//		while (this.P < en) {
 		while (true) {
 			type = getNext();
 			if (type == TYPE_EOF) break;
@@ -88,8 +103,13 @@ public abstract class VLexer {
 			D[DS[0]] = type;
 			DS[DS[0]] = ST;
 			if (P == L) return;
-			while (i != afterLen && P > afterDE[i]) i++;
-			if (i != afterLen && ST == afterDS[i] && P == afterDE[i] && type == afterD[i]) break;
+			if (i != afterLen && P >= afterDS[i]) {
+				do {
+					i++;
+				} while (i != afterLen && P >= afterDS[i]);
+				if (i != afterLen) i--;
+			}
+			if (i != afterLen) if (ST == afterDS[i] && type == afterD[i]) break;
 		}
 		if (afterLen != 0) {
 			int cplen = afterLen - i;
@@ -107,13 +127,15 @@ public abstract class VLexer {
 //		int en = DE[part2] - len;
 		pos -= len;
 		int part1 = findPart(pos);
-		if (pos == DS[part1]) part1--;
-		if (part1 == 0) return; // MARK HERE
+//		if (pos == DS[part1]) part1--;
+		if (part2 <= 0) {
+			for (int i = 1; i <= DS[0]; i++) DS[i] -= len;
+			return;
+		}
 		this.P = Math.min(DS[part1], pos);
 		int afterLen = DS[0] - part2;
 		short[] afterD = new short[afterLen];
 		int[] afterDS = new int[afterLen];
-		int[] afterDE = new int[afterLen];
 		if (afterLen != 0) {
 			System.arraycopy(D, part2 + 1, afterD, 0, afterLen);
 			for (int i = 0; i < afterLen; i++)
@@ -122,7 +144,6 @@ public abstract class VLexer {
 		DS[0] = part1 - 1;
 		int i = 0;
 		short type;
-//		while (this.P < en) {
 		while (true) {
 			type = getNext();
 			if (type == TYPE_EOF) break;
@@ -131,8 +152,13 @@ public abstract class VLexer {
 			D[DS[0]] = type;
 			DS[DS[0]] = ST;
 			if (P == L) return;
-			while (i != afterLen && P > afterDE[i]) i++;
-			if (i != afterLen && ST == afterDS[i] && P == afterDE[i] && type == afterD[i]) break;
+			if (i != afterLen && P >= afterDS[i]) {
+				do {
+					i++;
+				} while (i != afterLen && P >= afterDS[i]);
+				if (i != afterLen) i--;
+			}
+			if (i != afterLen) if (ST == afterDS[i] && type == afterD[i]) break;
 		}
 		if (afterLen != 0) {
 			int cplen = afterLen - i;
@@ -144,12 +170,27 @@ public abstract class VLexer {
 		}
 	}
 
+	public final void setText(char[] cs) {
+		setText(cs, cs.length);
+	}
+
+	public final void setText(char[] cs, int len) {
+		onTextReferenceUpdate(cs, len);
+		_Parsed = false;
+		if (_AutoParse) parseAll();
+	}
+
+	public final void onTextReferenceUpdate(char[] cs) {
+		onTextReferenceUpdate(cs, cs.length);
+	}
+
 	public final void onTextReferenceUpdate(char[] cs, int len) {
 		this.S = cs;
 		this.L = len;
 	}
 
 	public final int findPart(int pos) {
+		if (pos == 0) return 1;
 		int l = 1, r = DS[0];
 		int mid;
 		while (l <= r) {
@@ -201,14 +242,10 @@ public abstract class VLexer {
 		System.gc();
 	}
 
-	public final void setText(char[] cs) {
-		this.S = cs;
-		this.L = cs.length;
-		parseAll();
-	}
-
-	private void parseAll() {
+	public void parseAll() {
+		if (_Parsed) return;
 		this.P = this.DS[0] = 0;
+		if (S == null) return;
 		short type;
 		while ((type = getNext()) != TYPE_EOF) {
 			if (++DS[0] == D.length)
@@ -216,6 +253,7 @@ public abstract class VLexer {
 			D[DS[0]] = type;
 			DS[DS[0]] = ST;
 		}
+		_Parsed = true;
 	}
 
 	protected abstract short getNext();
@@ -251,6 +289,14 @@ public abstract class VLexer {
 			pos--;
 		}
 		return true;
+	}
+
+	public final String getStateString() {
+		StringBuffer buffer = new StringBuffer();
+		for (int i = 1; i <= DS[0]; i++)
+			buffer.append(getTypeName(D[i])).append(':').append(DS[i]).append('\n');
+		if (buffer.length() != 0) buffer.deleteCharAt(buffer.length() - 1);
+		return buffer.toString();
 	}
 
 	public static class Trie {

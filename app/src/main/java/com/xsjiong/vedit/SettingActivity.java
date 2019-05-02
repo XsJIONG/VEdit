@@ -7,9 +7,7 @@ import android.support.annotation.Nullable;
 import android.support.v7.app.AlertDialog;
 import android.support.v7.widget.AppCompatEditText;
 import android.text.InputType;
-import android.view.MenuItem;
 import android.view.View;
-import android.widget.CheckBox;
 import com.xsjiong.vedit.ui.SettingFragment;
 import com.xsjiong.vedit.ui.UI;
 import com.xsjiong.vedit.util.IntReference;
@@ -25,8 +23,7 @@ public class SettingActivity extends BaseActivity {
 		super.onCreate(savedInstanceState);
 		ResultIntent = new Intent();
 		setResult(RESULT_OK, ResultIntent);
-		getSupportActionBar().setDisplayHomeAsUpEnabled(true);
-		getSupportActionBar().setHomeButtonEnabled(true);
+		enableBackButton();
 		Q = new SettingFragment(this);
 		Q.addGroup("编辑器");
 		Q.addSimpleItem("设置字体大小", "设定编辑器的字体大小").setOnClickListener(new View.OnClickListener() {
@@ -108,14 +105,5 @@ public class SettingActivity extends BaseActivity {
 
 	private void onConfigChanged() {
 		ResultIntent.putExtra(CONFIG_CHANGED, true);
-	}
-
-	@Override
-	public boolean onOptionsItemSelected(MenuItem item) {
-		if (item.getItemId() == android.R.id.home) {
-			finish();
-			return true;
-		}
-		return super.onOptionsItemSelected(item);
 	}
 }

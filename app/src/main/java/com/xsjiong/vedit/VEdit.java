@@ -3,7 +3,6 @@ package com.xsjiong.vedit;
 import android.content.ClipData;
 import android.content.ClipboardManager;
 import android.content.Context;
-import android.database.Cursor;
 import android.graphics.*;
 import android.os.Bundle;
 import android.os.Handler;
@@ -25,72 +24,73 @@ import java.net.URL;
 import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
-import java.util.TimerTask;
 
-import static com.xsjiong.vedit.G.T;
+import static com.xsjiong.vedit.C.T;
 
 public class VEdit extends View implements Runnable {
 	// --------------------
 	// -----Constants------
 	// --------------------
 
-	public static final int DOUBLE_CLICK_INTERVAL = 200, MERGE_ACTIONS_INTERVAL = 250, BLINK_INTERVAL = 700;
+	public static final int DOUBLE_CLICK_INTERVAL = 300, MERGE_ACTIONS_INTERVAL = 250, BLINK_INTERVAL = 700;
 	public static final int LINE_NUMBER_SPLIT_WIDTH = 7;
 	public static final int EXPAND_SIZE = 64;
 	public static final int EMPTY_CHAR_WIDTH = 10;
 	public static final int SCROLL_TO_CURSOR_EXTRA = 20;
 	public static final short CHAR_SPACE = 32, CHAR_TAB = 9;
 	public static final int EDIT_ACTION_STACK_SIZE = 64;
+	public static final int E_EXPAND_SIZE = 256;
 
 
 	// -----------------
 	// -----Fields------
 	// -----------------
 
-	private TextPaint ContentPaint, LineNumberPaint;
-	private Paint ColorPaint;
-	private float YOffset;
-	private float TextHeight;
-	private int ContentHeight;
-	private char[] S = new char[0];
-	private int[] E = new int[257];
+	protected TextPaint ContentPaint, LineNumberPaint;
+	protected Paint ColorPaint;
+	protected float YOffset;
+	protected float TextHeight;
+	protected int ContentHeight;
+	protected char[] S = new char[0];
+	protected int[] E = new int[E_EXPAND_SIZE];
 	private int _minFling, _touchSlop;
 	private float _lastX, _lastY, _stX, _stY;
 	private OverScroller Scroller;
 	private VelocityTracker SpeedCalc;
 	private boolean isDragging = false;
-	private int TABSpaceCount = 4;
+	protected int TABSpaceCount = 4;
 	private int _YScrollRange;
-	private float LineNumberWidth;
+	protected float LineNumberWidth;
 	private int _maxOSX = 20, _maxOSY = 20;
-	private int _SStart = -1, _SEnd;
+	protected int _SStart = -1, _SEnd;
 	private int _CursorLine = 1, _CursorColumn = 0;
 	private float _CursorWidth = 2;
 	private float _LinePaddingTop = 5, _LinePaddingBottom = 5;
 	private float _ContentLeftPadding = 7;
 	private int _TextLength;
-	private boolean _Editable = true;
-	private VInputConnection _InputConnection;
-	private boolean _ShowLineNumber = true;
+	protected boolean Editable = true;
+	protected VInputConnection InputConnection;
+	protected boolean _ShowLineNumber = true;
 	private float[] _CharWidths = new float[65536];
 	private InputMethodManager _IMM;
-	private long LastClickTime = 0, LastInsertCharTime = 0;
+	private long LastClickTime = 0;
 	private int _ComposingStart = -1;
-	private VEditTheme _Theme = VEditThemeDark.getInstance();
-	private VLexer _Lexer = new VJavaLexer();
-	private Cursor _Cursor = new GlassCursor(this);
+	protected VEditTheme _Theme = VEditThemeDark.getInstance();
+	protected VLexer _Lexer = new VJavaLexer();
+	protected Cursor _Cursor = new GlassCursor(this);
 	private float _CursorHorizonOffset;
 	private float _SStartHorizonOffset, _SEndHorizonOffset;
-	private int _SStartLine, _SEndLine;
-	private float LineHeight;
-	private byte _DraggingCursor = Cursor.TYPE_NONE;
-	private SlideBar _SlideBar;
-	private EditActionStack _EditActionStack = new EditActionStack(this, EDIT_ACTION_STACK_SIZE);
+	protected int _SStartLine, _SEndLine;
+	protected float LineHeight;
+	protected byte _DraggingCursor = Cursor.TYPE_NONE;
+	protected SlideBar _SlideBar;
+	protected EditActionStack _EditActionStack = new EditActionStack(this, EDIT_ACTION_STACK_SIZE);
 	private EditListener _EditListener = null;
 	private boolean _BlinkCursor;
 	private boolean _ShowCursorLine;
 	private final byte[] _BlinkLock = new byte[0];
 	private Handler _Handler = new Handler();
+	private SelectListener _SelectListener;
 
 	// -----------------------
 	// -----Constructors------
@@ -139,6 +139,64 @@ public class VEdit extends View implements Runnable {
 	// ------------------
 	// -----Methods------
 	// ------------------
+
+	public void setSelectListener(SelectListener listener) {
+		_SelectListener = listener;
+	}
+
+	public SelectListener getSelectListener() {
+		return _SelectListener;
+	}
+
+	public void setSlideBar(SlideBar bar) {
+		_SlideBar = bar;
+		postInvalidate();
+	}
+
+	public SlideBar getSlideBar() {
+		return _SlideBar;
+	}
+
+	public void setCursor(Cursor cursor) {
+		_Cursor = cursor;
+		postInvalidate();
+	}
+
+	public Cursor getCursor() {
+		return _Cursor;
+	}
+
+	public float getCursorHorizonOffset() {
+		return _CursorHorizonOffset;
+	}
+
+	public int getCursorLine() {
+		return _CursorLine;
+	}
+
+	public int getCursorColumn() {
+		return _CursorColumn;
+	}
+
+	public float getLineHeight() {
+		return LineHeight;
+	}
+
+	public void setAutoParse(boolean flag) {
+		_Lexer.setAutoParse(flag);
+	}
+
+	public boolean isAutoParse() {
+		return _Lexer.isAutoParse();
+	}
+
+	public boolean isParsed() {
+		return _Lexer.isParsed();
+	}
+
+	public void parseAll() {
+		_Lexer.parseAll();
+	}
 
 	public void setBlinkCursor(boolean flag) {
 		synchronized (_BlinkLock) {
@@ -224,8 +282,8 @@ public class VEdit extends View implements Runnable {
 		}
 		if (_Lexer != null && _Lexer.getClass() == lexer.getClass()) return;
 		_Lexer = lexer;
-		_Lexer.setText(S);
-		invalidate();
+		_Lexer.setText(S, S.length);
+		postInvalidate();
 	}
 
 	public VLexer getLexer() {
@@ -278,8 +336,8 @@ public class VEdit extends View implements Runnable {
 	}
 
 	public void setEditable(boolean editable) {
-		_Editable = editable;
-		if (_Editable && _IMM != null)
+		Editable = editable;
+		if (Editable && _IMM != null)
 			_IMM.restartInput(this);
 		else hideIME();
 		invalidate();
@@ -371,7 +429,7 @@ public class VEdit extends View implements Runnable {
 		if (s == null) s = new char[0];
 		this.S = s;
 		_TextLength = length;
-		if (_Editable && _IMM != null)
+		if (Editable && _IMM != null)
 			_IMM.restartInput(this);
 		calculateEnters();
 		_Lexer.setText(s);
@@ -385,6 +443,7 @@ public class VEdit extends View implements Runnable {
 	}
 
 	public void setText(char[] s) {
+		if (s == null) s = new char[0];
 		setText(s, s.length);
 	}
 
@@ -529,7 +588,7 @@ public class VEdit extends View implements Runnable {
 	}
 
 	public int[] _deleteChar(int line, int column) {
-		if ((!_Editable) || (line == 1 && column == 0)) return new int[] {line, column};
+		if ((!Editable) || (line == 1 && column == 0)) return new int[] {line, column};
 		final int pos = E[line] + column;
 
 		if (_TextLength > pos)
@@ -567,7 +626,7 @@ public class VEdit extends View implements Runnable {
 	}
 
 	public int[] _insertChar(int line, int column, char c) {
-		if (!_Editable) return new int[] {line, column};
+		if (!Editable) return new int[] {line, column};
 		final int pos = E[line] + column;
 
 		if (S.length <= _TextLength + 1) {
@@ -697,7 +756,7 @@ public class VEdit extends View implements Runnable {
 	}
 
 	public int[] _insertChars(int line, int column, char[] cs) {
-		if (!_Editable) return new int[] {line, column};
+		if (!Editable) return new int[] {line, column};
 		if (cs.length == 1)
 			return _insertChar(line, column, cs[0]);
 		final int tl = cs.length;
@@ -776,7 +835,7 @@ public class VEdit extends View implements Runnable {
 	}
 
 	public int[] _deleteChars(int line, int column, int count) {
-		if ((!_Editable) || count == 0) return new int[] {line, column};
+		if ((!Editable) || count == 0) return new int[] {line, column};
 		if (count > _TextLength) {
 			S = new char[0];
 			E[0] = 2;
@@ -1092,16 +1151,16 @@ public class VEdit extends View implements Runnable {
 				| EditorInfo.TYPE_TEXT_FLAG_IME_MULTI_LINE;
 		outAttrs.initialSelStart = _SStart;
 		outAttrs.initialSelEnd = isRangeSelecting() ? -1 : _SEnd;
-		if (_InputConnection == null)
-			_InputConnection = new VInputConnection(this);
-		return _InputConnection;
+		if (InputConnection == null)
+			InputConnection = new VInputConnection(this);
+		return InputConnection;
 	}
 
 	@Override
 	public void setEnabled(boolean enabled) {
 		if (!enabled) hideIME();
 		super.setEnabled(enabled);
-		if (enabled && _Editable && _IMM != null) _IMM.restartInput(this);
+		if (enabled && Editable && _IMM != null) _IMM.restartInput(this);
 	}
 
 	// 绘制函数
@@ -1110,7 +1169,7 @@ public class VEdit extends View implements Runnable {
 		// Marks
 		long st = System.currentTimeMillis();
 		final boolean showSelecting = isRangeSelecting();
-		final boolean showCursor = (!showSelecting) && _Editable;
+		final boolean showCursor = (!showSelecting) && Editable;
 		final float bottom = getScrollY() + getHeight() + YOffset;
 		final int right = getScrollX() + getWidth();
 		final float xo = (_ShowLineNumber ? LineNumberWidth + LINE_NUMBER_SPLIT_WIDTH : 0) + _ContentLeftPadding;
@@ -1127,9 +1186,9 @@ public class VEdit extends View implements Runnable {
 		int parseTot = _Lexer.findPart(E[line]);
 		int parseTarget = _Lexer.DS[parseTot];
 		float SStartLineEnd = -1;
-//		Log.i(T, _Lexer.getPartCount() + " " + _Lexer.getTypeName(_Lexer.getPartType(_Lexer.getPartCount())));
 		LineDraw:
 		for (; line < E[0]; line++) {
+			Log.i(T, line + " ParseTarget:" + parseTarget);
 			if (_ShowLineNumber)
 				canvas.drawText(Integer.toString(line), LineNumberWidth, y, LineNumberPaint);
 			if (showCursor && _CursorLine == line) {
@@ -1150,6 +1209,7 @@ public class VEdit extends View implements Runnable {
 			if (parseTot <= _Lexer.DS[0]) {
 				while (i >= parseTarget && parseTot <= _Lexer.DS[0])
 					parseTarget = _Lexer.DS[++parseTot];
+				if (parseTot == _Lexer.DS[0] + 1) parseTarget = Integer.MAX_VALUE;
 				if (parseTot != 0)
 					ContentPaint.setColor(_Theme.getTypeColor(_Lexer.D[parseTot - 1]));
 			}
@@ -1206,17 +1266,49 @@ public class VEdit extends View implements Runnable {
 			_Cursor.draw(canvas, xo + _SEndHorizonOffset, LineHeight * _SEndLine, Cursor.TYPE_RIGHT);
 		}
 		_SlideBar.draw(canvas);
-		if (G.LOG_TIME) {
+		if (C.LOG_TIME) {
 			st = System.currentTimeMillis() - st;
-			Log.i(T, "耗时3: " + st);
+//			Log.i(T, "耗时：" + st);
 		}
+	}
+
+	public void finishScrolling() {
+		Scroller.forceFinished(true);
+	}
+
+	public void deleteSurrounding(int beforeLength, int afterLength) {
+		if (isRangeSelecting())
+			deleteSelecting();
+		else {
+			int pos = getCursorPosition() + afterLength;
+			int line = findLine(pos);
+			deleteChars(line, pos - E[line], afterLength + beforeLength);
+		}
+	}
+
+	public int findLine(int pos) {
+		int l = 1, r = E[0] - 1;
+		int mid;
+		while (l <= r) {
+			mid = (l + r) >> 1;
+			if (E[mid] <= pos)
+				l = mid + 1;
+			else
+				r = mid - 1;
+		}
+		return r;
+	}
+
+	public void clearCharWidthCache() {
+		Arrays.fill(_CharWidths, 0);
+		_CharWidths[CHAR_TAB] = (_CharWidths[CHAR_SPACE] = ContentPaint.measureText(" ")) * TABSpaceCount;
 	}
 
 	// -------------------------
 	// -----Private Methods-----
 	// -------------------------
 
-	private boolean interceptEditAction(EditAction action) {
+	protected boolean interceptEditAction(EditAction action) {
 		if (_EditListener == null) return false;
 		return _EditListener.onEdit(action);
 	}
@@ -1251,16 +1343,6 @@ public class VEdit extends View implements Runnable {
 		return Cursor.TYPE_NONE;
 	}
 
-	private void deleteSurrounding(int beforeLength, int afterLength) {
-		if (isRangeSelecting())
-			deleteSelecting();
-		else {
-			int pos = getCursorPosition() + afterLength;
-			int line = findLine(pos);
-			deleteChars(line, pos - E[line], afterLength + beforeLength);
-		}
-	}
-
 	private void calculateEnters() {
 		E[E[0] = 1] = 0;
 		for (int i = 0; i < _TextLength; i++) {
@@ -1274,7 +1356,7 @@ public class VEdit extends View implements Runnable {
 		E[++E[0]] = _TextLength + 1;
 	}
 
-	private boolean processEvent(KeyEvent event) {
+	protected boolean processEvent(KeyEvent event) {
 		if (event.getAction() != KeyEvent.ACTION_DOWN) return false;
 		if (event.isCtrlPressed()) {
 			switch (event.getKeyCode()) {
@@ -1317,26 +1399,12 @@ public class VEdit extends View implements Runnable {
 	}
 
 	private void expandEArray() {
-		// TODO Extract Constant
-		int[] ne = new int[E.length + 256];
+		int[] ne = new int[E.length + E_EXPAND_SIZE];
 		System.arraycopy(E, 0, ne, 0, E.length);
 		E = ne;
 	}
 
-	private int findLine(int pos) {
-		int l = 1, r = E[0] - 1;
-		int mid;
-		while (l <= r) {
-			mid = (l + r) >> 1;
-			if (E[mid] <= pos)
-				l = mid + 1;
-			else
-				r = mid - 1;
-		}
-		return r;
-	}
-
-	private void onClick(float x, float y) {
+	protected void onClick(float x, float y) {
 		long time = System.currentTimeMillis();
 		boolean dc = time - LastClickTime <= DOUBLE_CLICK_INTERVAL;
 		LastClickTime = time;
@@ -1346,7 +1414,7 @@ public class VEdit extends View implements Runnable {
 		_ComposingStart = -1;
 		if (dc) expandSelectionFrom(E[nc[0]] + nc[1]);
 		else finishSelecting();
-		if (_Editable && _IMM != null) {
+		if (Editable && _IMM != null) {
 			_IMM.viewClicked(this);
 			_IMM.showSoftInput(this, 0);
 //			_IMM.restartInput(this);
@@ -1354,7 +1422,7 @@ public class VEdit extends View implements Runnable {
 		postInvalidate();
 	}
 
-	private void onFontChange() {
+	protected void onFontChange() {
 		YOffset = -ContentPaint.ascent();
 		TextHeight = ContentPaint.descent() + YOffset;
 		LineHeight = TextHeight + _LinePaddingTop + _LinePaddingBottom;
@@ -1365,26 +1433,27 @@ public class VEdit extends View implements Runnable {
 		postInvalidate();
 	}
 
-	private void onLineChange() {
+	protected void onLineChange() {
 		ContentHeight = (int) (LineHeight * (E[0] - 1));
 		_YScrollRange = Math.max(ContentHeight - getHeight(), 0);
 		LineNumberWidth = LineNumberPaint.measureText("9") * ((int) Math.log10(E[0] - 1) + 1);
-	}
-
-	private void clearCharWidthCache() {
-		Arrays.fill(_CharWidths, 0);
-		_CharWidths[CHAR_TAB] = (_CharWidths[CHAR_SPACE] = ContentPaint.measureText(" ")) * TABSpaceCount;
 	}
 
 	private void springBack() {
 		Scroller.springBack(getScrollX(), getScrollY(), 0, Integer.MAX_VALUE, 0, _YScrollRange);
 	}
 
-	private ClipboardManager getClipboardManager() {
+	protected ClipboardManager getClipboardManager() {
 		return (ClipboardManager) getContext().getSystemService(Context.CLIPBOARD_SERVICE);
 	}
 
-	private void onSelectionUpdate() {
+	protected void onSelectionUpdate() {
+		if (_SelectListener != null) {
+			if (_SStart == -1) {
+				int pos = E[_CursorLine] + _CursorColumn;
+				_SelectListener.onSelect(pos, pos);
+			} else _SelectListener.onSelect(_SStart, _SEnd);
+		}
 		if (!isRangeSelecting()) {
 			makeCursorVisible(_CursorLine, _CursorColumn);
 			_CursorHorizonOffset = 0;
@@ -1399,7 +1468,7 @@ public class VEdit extends View implements Runnable {
 			off = E[_SEndLine = findLine(_SEnd)];
 			for (; off < _SEnd; off++) _SEndHorizonOffset += getCharWidth(S[off]);
 		}
-		if (_Editable && _IMM != null) {
+		if (Editable && _IMM != null) {
 			int sst, sen;
 			CursorAnchorInfo.Builder builder = new CursorAnchorInfo.Builder().setMatrix(null);
 			if (isRangeSelecting()) {
@@ -1441,6 +1510,10 @@ public class VEdit extends View implements Runnable {
 	// -----------------------
 	// -----Inner Classes-----
 	// -----------------------
+
+	public interface SelectListener {
+		void onSelect(int st, int en);
+	}
 
 	public interface EditListener {
 		boolean onEdit(EditAction action);
@@ -1646,8 +1719,8 @@ public class VEdit extends View implements Runnable {
 	}
 
 	public static class MaterialSlideBar extends SlideBar {
-		public static final int EXPAND_WIDTH = 20, COLLAPSE_WIDTH = 5;
-		public static final int HEIGHT = 40;
+		public static final int EXPAND_WIDTH = 15, COLLAPSE_WIDTH = 10;
+		public static final int HEIGHT = 100;
 
 		private boolean expand;
 		private Paint mp;
@@ -1880,6 +1953,10 @@ public class VEdit extends View implements Runnable {
 				this.pos = actions.length;
 			}
 
+			public EditAction[] getActions() {
+				return actions;
+			}
+
 			public void append(EditAction action) {
 				if (pos == actions.length) {
 					EditAction[] na = new EditAction[actions.length + MERGE_BUFFER];
@@ -1918,11 +1995,19 @@ public class VEdit extends View implements Runnable {
 				this.content = content;
 			}
 
+			public char[] getOrigin() {
+				return origin;
+			}
+
+			public char[] getContent() {
+				return content;
+			}
+
 			public void setOrigin(char[] cs) {
 				this.origin = cs;
 			}
 
-			public void setChars(char[] cs) {
+			public void setContent(char[] cs) {
 				this.content = cs;
 			}
 
@@ -1960,6 +2045,10 @@ public class VEdit extends View implements Runnable {
 				this.ch = c;
 			}
 
+			public char getChar() {
+				return ch;
+			}
+
 			public void setChar(char c) {
 				this.ch = c;
 			}
@@ -1994,6 +2083,14 @@ public class VEdit extends View implements Runnable {
 				this.content = content;
 			}
 
+			public char[] getContent() {
+				return content;
+			}
+
+			public void setContent(char[] cs) {
+				this.content = cs;
+			}
+
 			@Override
 			public void redo(VEdit edit) {
 				int[] ret = edit._deleteChars(line, column, content.length);
@@ -2022,6 +2119,10 @@ public class VEdit extends View implements Runnable {
 				this.line = line;
 				this.column = column;
 				this.ch = ch;
+			}
+
+			public char getChar() {
+				return ch;
 			}
 
 			public void setChar(char ch) {
@@ -2058,15 +2159,11 @@ public class VEdit extends View implements Runnable {
 				this.content = content;
 			}
 
-			public void appendText(char[] cs) {
-				char[] n = new char[content.length + cs.length];
-				System.arraycopy(content, 0, n, 0, content.length);
-				System.arraycopy(cs, 0, n, content.length, cs.length);
-				content = n;
-				n = null;
+			public char[] getContent() {
+				return content;
 			}
 
-			public void setChars(char[] s) {
+			public void setContent(char[] s) {
 				content = s;
 			}
 

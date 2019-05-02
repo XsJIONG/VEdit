@@ -8,12 +8,7 @@ import com.xsjiong.vlexer.*;
 import java.io.File;
 import java.util.ArrayList;
 
-public final class G {
-	public static final String T = "VEdit";
-	public static final int[] REFRESH_COLORS = {0xFF2196F3, 0xFFFBC02D, 0xFFFF5722, 0xFFE91E63, 0xFF7E57C2};
-	public static final boolean LOG_TIME = true;
-	public static final Class<? extends VLexer>[] LEXERS = (Class<? extends VLexer>[]) new Class<?>[] {VJavaLexer.class, VJavaScriptLexer.class, VCLexer.class, VCppLexer.class, VNullLexer.class};
-	public static final String[] LEXER_NAMES = {"Java", "JavaScript", "C", "C++", "无"};
+public final class G implements C {
 	private static SharedPreferences S;
 	public static int _LEXER_ID;
 	public static int _TEXT_SIZE;

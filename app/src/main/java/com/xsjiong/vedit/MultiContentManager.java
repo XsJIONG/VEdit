@@ -9,8 +9,7 @@ import android.widget.HorizontalScrollView;
 import com.xsjiong.vedit.theme.VEditTheme;
 import com.xsjiong.vedit.theme.VEditThemeLight;
 import com.xsjiong.vedit.ui.UI;
-import com.xsjiong.vlexer.VJavaLexer;
-import com.xsjiong.vlexer.VLexer;
+import com.xsjiong.vlexer.*;
 
 import java.io.File;
 import java.io.FileInputStream;
@@ -142,13 +141,11 @@ public class MultiContentManager extends LinearLayoutCompat implements View.OnCl
 		ButtonLayout.removeViewAt(pos);
 		int ind = getIndex();
 		if (ind == pos) {
-			ind = -1;
 			if (pos == size)
 				setIndex(size - 1);
 			else setIndex(pos);
 		} else if (ind > pos) {
 			pos = ind - 1;
-			ind = -1;
 			setIndex(pos);
 		}
 		onTabSizeUpdated();
@@ -178,7 +175,7 @@ public class MultiContentManager extends LinearLayoutCompat implements View.OnCl
 		for (int i = size - 1; i > pos; i--)
 			(data[i] = data[i - 1]).index = i;
 		data[pos] = new EditData(pos);
-		data[pos].file = file;
+		data[pos].setFile(file);
 		if (file != null) data[pos].saved = true;
 		data[pos].setText(cs);
 		AppCompatButton button = new AppCompatButton(getContext());
@@ -195,10 +192,14 @@ public class MultiContentManager extends LinearLayoutCompat implements View.OnCl
 		ButtonLayout.addView(button, pos);
 		setIndex(pos);
 		onTabSizeUpdated();
+		if (pos == 1 && size == 2 && data[0].cs.length == 0 && data[0].file == null)
+			deleteTab(0);
 	}
 
 	public void onEditDataUpdated(int ind) {
 		getButton(ind).setText(data[ind].getDisplay());
+		if (ind == getIndex())
+			data[ind].applyTo(Content);
 	}
 
 	@Override
@@ -230,7 +231,9 @@ public class MultiContentManager extends LinearLayoutCompat implements View.OnCl
 					ButtonScroller.smoothScrollTo(left, 0);
 			}
 		});
-		getCurrentEditData().applyTo(Content);
+		final EditData cur = getCurrentEditData();
+		cur.applyTo(Content);
+		Content.setText(cur.cs, cur.length);
 	}
 
 	public void selectButton(AppCompatButton button, boolean selected) {
@@ -259,20 +262,21 @@ public class MultiContentManager extends LinearLayoutCompat implements View.OnCl
 		int length;
 		char[] cs;
 		boolean saved;
-		File file;
-		Class<? extends VLexer> lexer;
+		private File file;
+		private Class<? extends VLexer> lexer;
 
 		public EditData(int ind) {
 			scrollX = scrollY = position = 0;
 			saved = false;
 			file = null;
-			lexer = VJavaLexer.class;
+			lexer = VNullLexer.class;
 			index = ind;
 		}
 
 		public EditData(int ind, VEdit edit) {
 			this(ind);
 			loadFrom(edit);
+			onFileChange();
 		}
 
 		public void setText(char[] cs) {
@@ -295,10 +299,10 @@ public class MultiContentManager extends LinearLayoutCompat implements View.OnCl
 		}
 
 		public void applyTo(VEdit edit) {
+			edit.finishScrolling();
 			edit.finishSelecting();
-			edit.setText(cs, length);
 			try {
-				edit.setLexer(lexer.newInstance());
+				edit.setLexer(getLexer().newInstance());
 			} catch (Throwable t) {
 				throw new RuntimeException(t);
 			}
@@ -311,6 +315,48 @@ public class MultiContentManager extends LinearLayoutCompat implements View.OnCl
 			String ret = file == null ? UNTITLED : file.getName();
 			if (saved) return ret;
 			return "*" + ret;
+		}
+
+		public void setFile(File f) {
+			this.file = f;
+			onFileChange();
+		}
+
+		public File getFile() {
+			return this.file;
+		}
+
+		private void onFileChange() {
+			this.lexer = VNullLexer.class;
+			if (this.file == null) return;
+			String name = this.file.getName();
+			int ind = name.lastIndexOf('.');
+			if (ind == -1) return;
+			name = name.substring(ind + 1).toLowerCase();
+			switch (name) {
+				case "java":
+					lexer = VJavaLexer.class;
+					break;
+				case "js":
+					lexer = VJavaScriptLexer.class;
+					break;
+				case "c":
+				case "h":
+					lexer = VCLexer.class;
+					break;
+				case "cpp":
+				case "cxx":
+				case "cc":
+				case "c++":
+				case "hpp":
+				case "hxx":
+					lexer = VCppLexer.class;
+					break;
+			}
+		}
+
+		public Class<? extends VLexer> getLexer() {
+			return (G._LEXER_ID == 0) ? lexer : C.LEXERS[G._LEXER_ID];
 		}
 	}
 }

@@ -2,12 +2,13 @@ package com.xsjiong.vedit;
 
 import android.content.Context;
 import android.graphics.Color;
+import android.support.v4.widget.CircularProgressDrawable;
 import android.view.Gravity;
 import android.view.View;
 import android.widget.LinearLayout;
+import android.widget.ProgressBar;
 import android.widget.TextView;
 import com.xsjiong.vedit.ui.UI;
-import fr.castorflex.android.smoothprogressbar.SmoothProgressBar;
 
 public class LoadingDialog extends FullScreenDialog {
 	public LoadingDialog(Context cx) {
@@ -18,7 +19,7 @@ public class LoadingDialog extends FullScreenDialog {
 	}
 
 	private LinearLayout Root;
-	private SmoothProgressBar Content;
+	private ProgressBar Content;
 	private TextView Message;
 
 	private void Initialize() {
@@ -26,8 +27,12 @@ public class LoadingDialog extends FullScreenDialog {
 		Root.setGravity(Gravity.CENTER);
 		Root.setBackgroundDrawable(null);
 		Root.setOrientation(LinearLayout.VERTICAL);
-		Content = new SmoothProgressBar(getContext());
-		Content.setSmoothProgressDrawableColors(G.REFRESH_COLORS);
+		Content = new ProgressBar(getContext());
+		CircularProgressDrawable drawable = new CircularProgressDrawable(getContext());
+		drawable.setStrokeWidth(15);
+		drawable.setBackgroundColor(Color.TRANSPARENT);
+		drawable.setColorSchemeColors(C.REFRESH_COLORS);
+		Content.setIndeterminateDrawable(drawable);
 		Root.addView(Content);
 		Message = new TextView(getContext());
 		Message.setTextColor(Color.WHITE);
