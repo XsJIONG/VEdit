@@ -18,6 +18,7 @@ import android.support.design.widget.Snackbar;
 import android.view.View;
 import android.view.Window;
 import android.view.WindowManager;
+import android.widget.Toast;
 import com.xsjiong.vedit.Logs;
 
 import java.lang.reflect.Field;
@@ -25,6 +26,7 @@ import java.lang.reflect.Field;
 public class UI {
 	public static int ThemeColor = 0xFF2196F3;
 	public static int AccentColor = 0xFFFFFFFF;
+	public static int IconColor = 0xFFBDBDBD;
 
 	public static void tintStatusBar(Activity activity, int color) {
 		if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
@@ -106,6 +108,10 @@ public class UI {
 
 	public static void print(View container, CharSequence cs) {
 		Snackbar.make(container, cs, Snackbar.LENGTH_SHORT).show();
+	}
+
+	public static void toast(Context cx, CharSequence cs) {
+		Toast.makeText(cx, cs, Toast.LENGTH_SHORT).show();
 	}
 
 	public static int lightenColor(int color, int a) {

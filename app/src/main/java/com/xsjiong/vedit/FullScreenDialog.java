@@ -7,7 +7,7 @@ import android.view.WindowManager;
 
 public class FullScreenDialog extends Dialog {
 	public FullScreenDialog(Context cx) {
-		super(cx, R.style.FullscreenDialog);
+		super(cx, R.style.FullScreenDialog);
 	}
 
 	@Override

@@ -1,15 +1,18 @@
 package com.xsjiong.vedit;
 
+import android.app.Activity;
 import android.content.ClipData;
 import android.content.ClipboardManager;
 import android.content.Context;
+import android.content.res.TypedArray;
 import android.graphics.*;
 import android.os.Bundle;
 import android.os.Handler;
+import android.support.v7.app.AppCompatActivity;
+import android.support.v7.view.ActionMode;
 import android.text.InputType;
 import android.text.TextPaint;
 import android.util.AttributeSet;
-import android.util.Log;
 import android.util.TypedValue;
 import android.view.*;
 import android.view.inputmethod.*;
@@ -23,9 +26,8 @@ import java.io.*;
 import java.net.URL;
 import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
 import java.util.Arrays;
-
-import static com.xsjiong.vedit.C.T;
 
 public class VEdit extends View implements Runnable {
 	// --------------------
@@ -91,6 +93,9 @@ public class VEdit extends View implements Runnable {
 	private final byte[] _BlinkLock = new byte[0];
 	private Handler _Handler = new Handler();
 	private SelectListener _SelectListener;
+	private ClipboardActionModeHelper _CBHelper;
+	private boolean _CBEnabled = true;
+	private ActionMode _ShowingActionMode;
 
 	// -----------------------
 	// -----Constructors------
@@ -111,6 +116,7 @@ public class VEdit extends View implements Runnable {
 		ViewConfiguration config = ViewConfiguration.get(cx);
 		_minFling = config.getScaledMinimumFlingVelocity();
 		_touchSlop = config.getScaledTouchSlop();
+		_CBHelper = new ClipboardActionModeHelper(this);
 		ContentPaint = new TextPaint();
 		ContentPaint.setAntiAlias(true);
 		LineNumberPaint = new TextPaint();
@@ -139,6 +145,36 @@ public class VEdit extends View implements Runnable {
 	// ------------------
 	// -----Methods------
 	// ------------------
+
+	public void onStartActionMode(ActionMode mode) {
+		_ShowingActionMode = mode;
+	}
+
+	public void onHideActionMode() {
+		_ShowingActionMode = null;
+	}
+
+	public int[] find(char[] cs) {
+		final int T = _TextLength - cs.length;
+		ArrayList<Integer> rret = new ArrayList<>();
+		find:
+		for (int i = 0, j; i <= T; i++) {
+			for (j = 0; j < cs.length; j++) if (S[i + j] != cs[j]) continue find;
+			rret.add(i);
+		}
+		int[] ret = new int[rret.size()];
+		for (int i = 0; i < ret.length; i++) ret[i] = rret.get(i);
+		rret = null;
+		return ret;
+	}
+
+	public void setClipboardEnabled(boolean flag) {
+		if (!(_CBEnabled = flag)) _CBHelper.hide();
+	}
+
+	public boolean isClipboardEnabled() {
+		return _CBEnabled;
+	}
 
 	public boolean isEditable() {
 		return Editable;
@@ -930,7 +966,6 @@ public class VEdit extends View implements Runnable {
 		int st = pos, en = pos;
 		for (; st >= 0 && isSelectableChar(S[st]); st--) ;
 		for (; en < _TextLength && isSelectableChar(S[en]); en++) ;
-		if (en != _TextLength && S[en] == '\n') return;
 		setSelectionRange(st + 1, en);
 	}
 
@@ -1192,7 +1227,6 @@ public class VEdit extends View implements Runnable {
 		float SStartLineEnd = -1;
 		LineDraw:
 		for (; line < E[0]; line++) {
-			Log.i(T, line + " ParseTarget:" + parseTarget);
 			if (_ShowLineNumber)
 				canvas.drawText(Integer.toString(line), LineNumberWidth, y, LineNumberPaint);
 			if (showCursor && _CursorLine == line) {
@@ -1311,6 +1345,10 @@ public class VEdit extends View implements Runnable {
 	// -------------------------
 	// -----Private Methods-----
 	// -------------------------
+
+	public char getChar(int ind) {
+		return S[ind];
+	}
 
 	protected boolean interceptEditAction(EditAction action) {
 		if (_EditListener == null) return false;
@@ -1452,6 +1490,12 @@ public class VEdit extends View implements Runnable {
 	}
 
 	protected void onSelectionUpdate() {
+		if (_SStart != _SEnd && _SStart != -1) {
+			if (_CBEnabled) _CBHelper.show();
+		} else {
+			if (_ShowingActionMode != null) _ShowingActionMode.finish();
+			else if (_CBEnabled) _CBHelper.hide();
+		}
 		if (_SelectListener != null) {
 			if (_SStart == -1) {
 				int pos = E[_CursorLine] + _CursorColumn;
@@ -1465,12 +1509,14 @@ public class VEdit extends View implements Runnable {
 			int tar = off + _CursorColumn;
 			for (; off < tar; off++) _CursorHorizonOffset += getCharWidth(S[off]);
 		} else {
+			makeCursorVisible(_SEndLine, _SEnd - E[_SEndLine]);
 			_SStartHorizonOffset = 0;
 			int off = E[_SStartLine = findLine(_SStart)];
 			for (; off < _SStart; off++) _SStartHorizonOffset += getCharWidth(S[off]);
 			_SEndHorizonOffset = 0;
 			off = E[_SEndLine = findLine(_SEnd)];
 			for (; off < _SEnd; off++) _SEndHorizonOffset += getCharWidth(S[off]);
+
 		}
 		if (Editable && _IMM != null) {
 			int sst, sen;
@@ -1514,6 +1560,97 @@ public class VEdit extends View implements Runnable {
 	// -----------------------
 	// -----Inner Classes-----
 	// -----------------------
+
+	private static class ClipboardActionModeHelper {
+		private VEdit Content;
+		private Context cx;
+		private android.support.v7.view.ActionMode _ActionMode;
+
+		public ClipboardActionModeHelper(VEdit textField) {
+			Content = textField;
+			cx = Content.getContext();
+		}
+
+		public void show() {
+			if (!(cx instanceof AppCompatActivity)) return;
+			if (Content._ShowingActionMode != null) return;
+			if (_ActionMode == null)
+				((AppCompatActivity) cx).startSupportActionMode(new android.support.v7.view.ActionMode.Callback() {
+					@Override
+					public boolean onCreateActionMode(android.support.v7.view.ActionMode mode, Menu menu) {
+						_ActionMode = mode;
+						mode.setTitle(android.R.string.selectTextMode);
+						TypedArray array = cx.getTheme().obtainStyledAttributes(new int[] {
+								android.R.attr.actionModeSelectAllDrawable,
+								android.R.attr.actionModeCutDrawable,
+								android.R.attr.actionModeCopyDrawable,
+								android.R.attr.actionModePasteDrawable,
+						});
+						menu.add(0, 0, 0, cx.getString(android.R.string.selectAll))
+								.setShowAsActionFlags(2)
+								.setAlphabeticShortcut('a')
+								.setIcon(array.getDrawable(0));
+						menu.add(0, 1, 0, cx.getString(android.R.string.cut))
+								.setShowAsActionFlags(2)
+								.setAlphabeticShortcut('x')
+								.setIcon(array.getDrawable(1));
+						menu.add(0, 2, 0, cx.getString(android.R.string.copy))
+								.setShowAsActionFlags(2)
+								.setAlphabeticShortcut('c')
+								.setIcon(array.getDrawable(2));
+						menu.add(0, 3, 0, cx.getString(android.R.string.paste))
+								.setShowAsActionFlags(2)
+								.setAlphabeticShortcut('v')
+								.setIcon(array.getDrawable(3));
+						array.recycle();
+						return true;
+					}
+
+					@Override
+					public boolean onPrepareActionMode(android.support.v7.view.ActionMode mode, Menu menu) {
+						return false;
+					}
+
+					@Override
+					public boolean onActionItemClicked(android.support.v7.view.ActionMode mode, MenuItem item) {
+						switch (item.getItemId()) {
+							case 0:
+								Content.selectAll();
+								break;
+							case 1:
+								Content.cut();
+								mode.finish();
+								break;
+							case 2:
+								Content.copy();
+								mode.finish();
+								break;
+							case 3:
+								Content.paste();
+								mode.finish();
+								break;
+							default:
+								return false;
+						}
+						return true;
+					}
+
+					@Override
+					public void onDestroyActionMode(ActionMode p1) {
+						Content.finishSelecting();
+						_ActionMode = null;
+					}
+				});
+		}
+
+		public void hide() {
+			if (!(cx instanceof Activity)) return;
+			if (_ActionMode != null) {
+				_ActionMode.finish();
+				_ActionMode = null;
+			}
+		}
+	}
 
 	public interface SelectListener {
 		void onSelect(int st, int en);
@@ -2255,6 +2392,7 @@ public class VEdit extends View implements Runnable {
 
 		public boolean redo() {
 			if (_undoCount == 0) return false;
+			if (arr[_pos] == null) return false;
 			arr[_pos].redo(parent);
 			if (++_pos == arr.length) _pos = 0;
 			_undoCount--;

@@ -1,6 +1,7 @@
 package com.xsjiong.vlexer;
 
 import java.lang.reflect.Field;
+import java.util.ArrayList;
 
 public abstract class VLexer {
 	public static final int EXPAND_SIZE = 128;
@@ -76,7 +77,7 @@ public abstract class VLexer {
 			parseAll();
 			return;
 		}
-		int part = findPart(pos);
+		int part = findPart(Math.max(pos - 1, 0));
 //		if (pos == DS[part]) part--;
 		if (part <= 0) {
 			for (int i = 1; i <= DS[0]; i++) DS[i] += len;
@@ -84,7 +85,7 @@ public abstract class VLexer {
 		}
 		this.P = Math.min(DS[part], pos);
 //		int en = DE[part] + len;
-		int afterLen = DS[0] - part;
+		int afterLen = Math.max(DS[0] - part, 0);
 		short[] afterD = new short[afterLen];
 		int[] afterDS = new int[afterLen];
 		if (afterLen != 0) {
@@ -126,14 +127,14 @@ public abstract class VLexer {
 		int part2 = findPart(pos);
 //		int en = DE[part2] - len;
 		pos -= len;
-		int part1 = findPart(pos);
+		int part1 = findPart(Math.max(pos - 1, 0));
 //		if (pos == DS[part1]) part1--;
 		if (part2 <= 0) {
 			for (int i = 1; i <= DS[0]; i++) DS[i] -= len;
 			return;
 		}
 		this.P = Math.min(DS[part1], pos);
-		int afterLen = DS[0] - part2;
+		int afterLen = Math.max(DS[0] - part2, 0);
 		short[] afterD = new short[afterLen];
 		int[] afterDS = new int[afterLen];
 		if (afterLen != 0) {
@@ -187,6 +188,7 @@ public abstract class VLexer {
 	public final void onTextReferenceUpdate(char[] cs, int len) {
 		this.S = cs;
 		this.L = len;
+		_Parsed = false;
 	}
 
 	public final int findPart(int pos) {
@@ -299,6 +301,11 @@ public abstract class VLexer {
 		return buffer.toString();
 	}
 
+	public final String[] queryKeywords(char[] cs, int st, int en) {
+		if (!(this instanceof VCommonLexer)) return new String[0];
+		return ((VCommonLexer) this).getKeywordTrie().queryWords(cs, st, en);
+	}
+
 	public static class Trie {
 		private final short[][] C;
 		private final boolean[] L;
@@ -337,6 +344,33 @@ public abstract class VLexer {
 				if ((cur = C[cur][c]) == 0) return false;
 			}
 			return L[cur];
+		}
+
+		public String[] queryWords(char[] cs, int st, int en) {
+			final String[] EMPTY = new String[0];
+
+			byte c;
+			int cur = 0;
+			for (int i = st; i < en; i++) {
+				c = (byte) (cs[i] - 'a');
+				if (c < 0 || c >= 26) return EMPTY;
+				if ((cur = C[cur][c]) == 0) return EMPTY;
+			}
+			StringBuffer full = new StringBuffer();
+			full.append(cs, st, en - st);
+			ArrayList<String> ret = new ArrayList<>();
+			listWords(full, cur, ret);
+			return ret.toArray(EMPTY);
+		}
+
+		private void listWords(StringBuffer full, int node, ArrayList<String> str) {
+			if (L[node]) str.add(full.toString());
+			for (char c = 0; c < 26; c++) {
+				if (C[node][c] == 0) continue;
+				full.append((char) (c + 'a'));
+				listWords(full, C[node][c], str);
+				full.deleteCharAt(full.length() - 1);
+			}
 		}
 	}
 }

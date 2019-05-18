@@ -12,12 +12,14 @@ import android.support.v7.app.AlertDialog;
 import android.support.v7.widget.LinearLayoutCompat;
 import android.support.v7.widget.Toolbar;
 import android.util.TypedValue;
-import android.view.Menu;
-import android.view.MenuItem;
-import android.view.SubMenu;
-import android.view.View;
+import android.view.*;
+import android.widget.HorizontalScrollView;
+import android.widget.LinearLayout;
+import android.widget.RelativeLayout;
+import android.widget.TextView;
 import com.xsjiong.vedit.theme.VEditThemeDark;
 import com.xsjiong.vedit.theme.VEditThemeLight;
+import com.xsjiong.vedit.ui.FindReplaceDialog;
 import com.xsjiong.vedit.ui.UI;
 
 import java.io.File;
@@ -25,6 +27,9 @@ import java.io.FileInputStream;
 import java.io.FileOutputStream;
 
 public class EditActivity extends BaseActivity implements VEdit.EditListener, MultiContentManager.EditDataClickListener, C {
+	public static final char[] SYMBOLS = {'\t', '{', '}', '(', ')', ';', ',', '.', '=', '\"', '<', '>', '&', '+', '-', '*', '/', '[', ']', '|', '!', '?', '\\', ':', '_'};
+	public static final String TAB = "->";
+
 	public static final int REQUEST_CODE_SETTING = 1;
 	public static final int REQUEST_CODE_CHOOSE_FILE = 2;
 
@@ -33,6 +38,8 @@ public class EditActivity extends BaseActivity implements VEdit.EditListener, Mu
 	private VEdit Content;
 	private Toolbar Title;
 	private LoadingDialog Loading;
+	private LinearLayoutCompat SymbolLayout;
+	private RelativeLayout LowerContent;
 
 	@Override
 	protected void onCreate(Bundle savedInstanceState) {
@@ -54,10 +61,50 @@ public class EditActivity extends BaseActivity implements VEdit.EditListener, Mu
 		Content.setAutoParse(false);
 		Content.setEditListener(this);
 		onSettingChanged();
-		Container.addView(ContentManager, -1, -1);
+		LowerContent = new RelativeLayout(this);
+		Container.addView(LowerContent);
+		LowerContent.addView(ContentManager, -1, -1);
+		initSymbolLayout();
+		{
+			RelativeLayout.LayoutParams para = new RelativeLayout.LayoutParams(-1, -2);
+			para.addRule(RelativeLayout.ALIGN_PARENT_BOTTOM);
+			LowerContent.addView(SymbolLayout, para);
+		}
 		setContentView(Container);
 
+
 		Loading = new LoadingDialog(this);
+	}
+
+	private void initSymbolLayout() {
+		SymbolLayout = new LinearLayoutCompat(this);
+		SymbolLayout.setOrientation(LinearLayoutCompat.HORIZONTAL);
+		SymbolLayout.setBackgroundColor(UI.ThemeColor);
+		SymbolLayout.setAlpha(0.7f);
+		LinearLayoutCompat symbolContent = new LinearLayoutCompat(this);
+		symbolContent.setOrientation(LinearLayout.HORIZONTAL);
+		int w = UI.AccentColor;
+		TextView tv;
+		LinearLayout.LayoutParams p = new LinearLayout.LayoutParams(UI.dp2px(38), UI.dp2px(38));
+		for (int i = 0; i < SYMBOLS.length; i++) {
+			tv = new TextView(this);
+			tv.setTextColor(w);
+			tv.setText(SYMBOLS[i] == '\t' ? TAB : SYMBOLS[i] + "");
+			tv.setTextSize(20);
+			tv.setTypeface(Typeface.defaultFromStyle(Typeface.BOLD));
+			tv.setGravity(Gravity.CENTER);
+			tv.setOnClickListener(new View.OnClickListener() {
+				@Override
+				public void onClick(View v) {
+					Content.commitChars((((TextView) v).getText().toString().equals(TAB) ? "\t" : ((TextView) v).getText().toString()).toCharArray());
+				}
+			});
+			symbolContent.addView(tv, p);
+		}
+		HorizontalScrollView sc = new HorizontalScrollView(this);
+		sc.addView(symbolContent);
+		LinearLayout.LayoutParams para = new LinearLayout.LayoutParams(-1, -2);
+		SymbolLayout.addView(sc, para);
 	}
 
 	@Override
@@ -145,17 +192,21 @@ public class EditActivity extends BaseActivity implements VEdit.EditListener, Mu
 
 	@Override
 	public boolean onCreateOptionsMenu(Menu menu) {
-		final int flag = MenuItem.SHOW_AS_ACTION_ALWAYS;
 		View v = new View(this);
 		v.setBackgroundColor(Color.RED);
 		SubMenu sm = menu.addSubMenu(0, 0, 0, "文件").setIcon(UI.tintDrawable(this, R.mipmap.icon_directory, UI.AccentColor));
-		sm.getItem().setShowAsActionFlags(flag);
+		sm.getItem().setShowAsActionFlags(2);
 		sm.add(0, 1, 0, "新建");
 		sm.add(0, 2, 0, "打开");
 		sm.add(0, 3, 0, "保存");
 		sm.add(0, 4, 0, "另存为");
-		sm.add(0, 6, 0, "Debug");
-		menu.add(0, 5, 0, R.string.title_settings).setIcon(UI.tintDrawable(this, R.mipmap.icon_settings, UI.AccentColor)).setShowAsActionFlags(flag);
+		sm = menu.addSubMenu(0, 0, 0, "编辑").setIcon(UI.tintDrawable(this, R.mipmap.icon_edit, UI.AccentColor));
+		sm.getItem().setShowAsActionFlags(2);
+		sm.add(0, 6, 0, "撤销");
+		sm.add(0, 7, 0, "重做");
+		sm.add(0, 8, 0, "查找");
+		sm.add(0, 9, 0, "替换");
+		menu.add(0, 5, 0, R.string.title_settings).setIcon(UI.tintDrawable(this, R.mipmap.icon_settings, UI.AccentColor)).setShowAsActionFlags(2);
 		return true;
 	}
 
@@ -243,8 +294,16 @@ public class EditActivity extends BaseActivity implements VEdit.EditListener, Mu
 				startActivityForResult(new Intent(this, SettingActivity.class), REQUEST_CODE_SETTING);
 				break;
 			}
-			case 6:{
-				new AlertDialog.Builder(this).setTitle("Debug").setMessage(Content.getLexer().getStateString()).setPositiveButton("确定", null).setCancelable(true).show();
+			case 6: {
+				Content.undo();
+				break;
+			}
+			case 7: {
+				Content.redo();
+				break;
+			}
+			case 8: {
+				new FindReplaceDialog(Content).show();
 			}
 			default:
 				return super.onOptionsItemSelected(item);
@@ -285,52 +344,4 @@ public class EditActivity extends BaseActivity implements VEdit.EditListener, Mu
 	private interface ChooseFileListener {
 		void onChoose(File f);
 	}
-
-	/*@Override
-	public boolean onCreateOptionsMenu(Menu menu) {
-		menu.add(0, 0, 0, "撤销");
-		menu.add(0, 0, 1, "重做");
-		menu.add(0, 0, 2, "切换主题");
-		menu.add(0, 0, 3, "隐藏行号");
-		menu.add(0, 0, 4, "切换高亮");
-		return super.onCreateOptionsMenu(menu);
-	}
-
-	@Override
-	public boolean onOptionsItemSelected(MenuItem item) {
-		switch (item.getOrder()) {
-			case 0:
-				ContentManager.undo();
-				break;
-			case 1:
-				ContentManager.redo();
-				break;
-			case 2:
-				if (ContentManager.getColorScheme() instanceof VEditThemeLight)
-					ContentManager.setTheme(VEditThemeDark.getInstance());
-				else
-					ContentManager.setTheme(VEditThemeLight.getInstance());
-				break;
-			case 3:
-				if (Content.isShowLineNumber()) {
-					Content.setShowLineNumber(false);
-					item.setTitle("显示行号");
-				} else {
-					Content.setShowLineNumber(true);
-					item.setTitle("隐藏行号");
-				}
-				break;
-			case 4:
-				new AlertDialog.Builder(this).setTitle("切换高亮").setSingleChoiceItems(G.LEXER_NAMES, G.getLexerIndex(ContentManager.getLexer()), icon_create DialogInterface.OnClickListener() {
-					@Override
-					public void onEditDataClick(DialogInterface dialog, int which) {
-						Content.setLexer(G.newLexer(which));
-					}
-				}).setCancelable(true).setPositiveButton("取消", null).show();
-				break;
-		}
-		return super.onOptionsItemSelected(item);
-	}*/
-
-
 }
