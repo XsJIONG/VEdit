@@ -26,7 +26,7 @@ import java.lang.reflect.Field;
 public class UI {
 	public static int ThemeColor = 0xFF2196F3;
 	public static int AccentColor = 0xFFFFFFFF;
-	public static int IconColor = 0xFFBDBDBD;
+	public static int IconColor = 0xFF8A8A8A;
 
 	public static void tintStatusBar(Activity activity, int color) {
 		if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {

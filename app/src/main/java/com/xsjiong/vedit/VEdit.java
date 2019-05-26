@@ -159,13 +159,18 @@ public class VEdit extends View implements Runnable {
 		ArrayList<Integer> rret = new ArrayList<>();
 		find:
 		for (int i = 0, j; i <= T; i++) {
-			for (j = 0; j < cs.length; j++) if (S[i + j] != cs[j]) continue find;
+			if (!equal(i, cs)) continue find;
 			rret.add(i);
 		}
 		int[] ret = new int[rret.size()];
 		for (int i = 0; i < ret.length; i++) ret[i] = rret.get(i);
 		rret = null;
 		return ret;
+	}
+
+	public boolean equal(int st, char[] cmp) {
+		for (int i = 0; i < cmp.length; i++) if (cmp[i] != S[st + i]) return false;
+		return true;
 	}
 
 	public void setClipboardEnabled(boolean flag) {
@@ -1509,13 +1514,13 @@ public class VEdit extends View implements Runnable {
 			int tar = off + _CursorColumn;
 			for (; off < tar; off++) _CursorHorizonOffset += getCharWidth(S[off]);
 		} else {
-			makeCursorVisible(_SEndLine, _SEnd - E[_SEndLine]);
 			_SStartHorizonOffset = 0;
 			int off = E[_SStartLine = findLine(_SStart)];
 			for (; off < _SStart; off++) _SStartHorizonOffset += getCharWidth(S[off]);
 			_SEndHorizonOffset = 0;
 			off = E[_SEndLine = findLine(_SEnd)];
 			for (; off < _SEnd; off++) _SEndHorizonOffset += getCharWidth(S[off]);
+			makeCursorVisible(_SEndLine, _SEnd - E[_SEndLine]);
 
 		}
 		if (Editable && _IMM != null) {

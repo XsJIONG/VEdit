@@ -15,7 +15,6 @@ import android.util.TypedValue;
 import android.view.*;
 import android.widget.HorizontalScrollView;
 import android.widget.LinearLayout;
-import android.widget.RelativeLayout;
 import android.widget.TextView;
 import com.xsjiong.vedit.theme.VEditThemeDark;
 import com.xsjiong.vedit.theme.VEditThemeLight;
@@ -39,7 +38,8 @@ public class EditActivity extends BaseActivity implements VEdit.EditListener, Mu
 	private Toolbar Title;
 	private LoadingDialog Loading;
 	private LinearLayoutCompat SymbolLayout;
-	private RelativeLayout LowerContent;
+
+	private FindReplaceDialog _FRDialog;
 
 	@Override
 	protected void onCreate(Bundle savedInstanceState) {
@@ -61,17 +61,16 @@ public class EditActivity extends BaseActivity implements VEdit.EditListener, Mu
 		Content.setAutoParse(false);
 		Content.setEditListener(this);
 		onSettingChanged();
-		LowerContent = new RelativeLayout(this);
-		Container.addView(LowerContent);
-		LowerContent.addView(ContentManager, -1, -1);
-		initSymbolLayout();
 		{
-			RelativeLayout.LayoutParams para = new RelativeLayout.LayoutParams(-1, -2);
-			para.addRule(RelativeLayout.ALIGN_PARENT_BOTTOM);
-			LowerContent.addView(SymbolLayout, para);
+			LinearLayoutCompat.LayoutParams para = new LinearLayoutCompat.LayoutParams(-1, 0);
+			para.weight = 1;
+			Container.addView(ContentManager, para);
+			;
 		}
+		initSymbolLayout();
+		Container.addView(SymbolLayout, -1, -2);
+		_FRDialog = new FindReplaceDialog(Content);
 		setContentView(Container);
-
 
 		Loading = new LoadingDialog(this);
 	}
@@ -204,8 +203,7 @@ public class EditActivity extends BaseActivity implements VEdit.EditListener, Mu
 		sm.getItem().setShowAsActionFlags(2);
 		sm.add(0, 6, 0, "撤销");
 		sm.add(0, 7, 0, "重做");
-		sm.add(0, 8, 0, "查找");
-		sm.add(0, 9, 0, "替换");
+		sm.add(0, 8, 0, "查找替换");
 		menu.add(0, 5, 0, R.string.title_settings).setIcon(UI.tintDrawable(this, R.mipmap.icon_settings, UI.AccentColor)).setShowAsActionFlags(2);
 		return true;
 	}
@@ -303,7 +301,8 @@ public class EditActivity extends BaseActivity implements VEdit.EditListener, Mu
 				break;
 			}
 			case 8: {
-				new FindReplaceDialog(Content).show();
+				_FRDialog.show();
+				break;
 			}
 			default:
 				return super.onOptionsItemSelected(item);
