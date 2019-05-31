@@ -44,6 +44,7 @@ public class EditActivity extends BaseActivity implements VEdit.EditListener, Mu
 	@Override
 	protected void onCreate(Bundle savedInstanceState) {
 		super.onCreate(savedInstanceState);
+		getWindow().setBackgroundDrawable(null);
 		Title = new Toolbar(this);
 		Title.setTitle(R.string.app_name);
 		ViewCompat.setElevation(Title, UI.dp2px(5));
@@ -65,7 +66,6 @@ public class EditActivity extends BaseActivity implements VEdit.EditListener, Mu
 			LinearLayoutCompat.LayoutParams para = new LinearLayoutCompat.LayoutParams(-1, 0);
 			para.weight = 1;
 			Container.addView(ContentManager, para);
-			;
 		}
 		initSymbolLayout();
 		Container.addView(SymbolLayout, -1, -2);

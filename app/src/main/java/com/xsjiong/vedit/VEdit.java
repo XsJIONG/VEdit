@@ -13,6 +13,7 @@ import android.support.v7.view.ActionMode;
 import android.text.InputType;
 import android.text.TextPaint;
 import android.util.AttributeSet;
+import android.util.Log;
 import android.util.TypedValue;
 import android.view.*;
 import android.view.inputmethod.*;
@@ -111,6 +112,7 @@ public class VEdit extends View implements Runnable {
 
 	public VEdit(Context cx, AttributeSet attr, int style) {
 		super(cx, attr, style);
+		setLayerType(View.LAYER_TYPE_HARDWARE, null);
 		Scroller = new OverScroller(getContext());
 		SpeedCalc = VelocityTracker.obtain();
 		ViewConfiguration config = ViewConfiguration.get(cx);
@@ -1311,7 +1313,7 @@ public class VEdit extends View implements Runnable {
 		_SlideBar.draw(canvas);
 		if (C.LOG_TIME) {
 			st = System.currentTimeMillis() - st;
-//			Log.i(T, "耗时：" + st);
+			Log.i(C.T, "耗时：" + st);
 		}
 	}
 
