@@ -198,8 +198,12 @@ public class MultiContentManager extends LinearLayoutCompat implements View.OnCl
 
 	public void onEditDataUpdated(int ind) {
 		getButton(ind).setText(data[ind].getDisplay());
-		if (ind == getIndex())
+		if (ind == getIndex()) {
+			data[ind].position = Content.getCursorPosition();
+			data[ind].scrollX = Content.getScrollX();
+			data[ind].scrollY = Content.getScrollY();
 			data[ind].applyTo(Content);
+		}
 	}
 
 	@Override
@@ -256,12 +260,12 @@ public class MultiContentManager extends LinearLayoutCompat implements View.OnCl
 	}
 
 	public static class EditData {
-		int scrollX, scrollY;
-		int position;
-		int index;
-		int length;
-		char[] cs;
-		boolean saved;
+		public int scrollX, scrollY;
+		public int position;
+		public int index;
+		public int length;
+		public char[] cs;
+		public boolean saved;
 		private File file;
 		private Class<? extends VLexer> lexer;
 

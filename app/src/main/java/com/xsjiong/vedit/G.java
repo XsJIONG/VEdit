@@ -17,7 +17,7 @@ public final class G implements C {
 	public static boolean _NIGHT_THEME;
 	public static final ArrayList<File> _BOOKMARKS = new ArrayList<>();
 
-	static final void Initialize(Context cx) {
+	public static final void Initialize(Context cx) {
 		S = cx.getSharedPreferences("editor_config", Context.MODE_PRIVATE);
 		String str = S.getString("lexer_name", LEXER_NAMES[0]);
 		for (int i = 0; i < LEXER_NAMES.length; i++)

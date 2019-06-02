@@ -132,7 +132,12 @@ public class EditActivity extends BaseActivity implements VEdit.EditListener, Mu
 		MultiContentManager.EditData data = ContentManager.getCurrentEditData();
 		if (data.saved) {
 			data.saved = false;
-			ContentManager.onEditDataUpdated(ContentManager.getIndex());
+			UI.onUI(new Runnable() {
+				@Override
+				public void run() {
+					ContentManager.onEditDataUpdated(ContentManager.getIndex());
+				}
+			});
 		}
 		return false;
 	}
@@ -260,7 +265,7 @@ public class EditActivity extends BaseActivity implements VEdit.EditListener, Mu
 									});
 								} catch (Throwable t) {
 									dismissLoading();
-									UI.showError(EditActivity.this, t);
+									UI.postShowError(EditActivity.this, t);
 								}
 							}
 						}.start();

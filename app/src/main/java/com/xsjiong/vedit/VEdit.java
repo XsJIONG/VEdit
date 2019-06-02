@@ -36,6 +36,7 @@ public class VEdit extends View implements Runnable {
 	// --------------------
 
 	public static final int DOUBLE_CLICK_INTERVAL = 300, MERGE_ACTIONS_INTERVAL = 250, BLINK_INTERVAL = 700;
+	public static final int DOUBLE_CLICK_RANGE = 40;
 	public static final int LINE_NUMBER_SPLIT_WIDTH = 7;
 	public static final int EXPAND_SIZE = 64;
 	public static final int EMPTY_CHAR_WIDTH = 10;
@@ -77,6 +78,7 @@ public class VEdit extends View implements Runnable {
 	private float[] _CharWidths = new float[65536];
 	private InputMethodManager _IMM;
 	private long LastClickTime = 0;
+	private float _lastClickX, _lastClickY;
 	private int _ComposingStart = -1;
 	protected VEditTheme _Theme = VEditThemeDark.getInstance();
 	protected VLexer _Lexer = new VJavaLexer();
@@ -112,6 +114,7 @@ public class VEdit extends View implements Runnable {
 
 	public VEdit(Context cx, AttributeSet attr, int style) {
 		super(cx, attr, style);
+		_lastClickX = _lastClickY = 0;
 		setLayerType(View.LAYER_TYPE_HARDWARE, null);
 		Scroller = new OverScroller(getContext());
 		SpeedCalc = VelocityTracker.obtain();
@@ -140,7 +143,6 @@ public class VEdit extends View implements Runnable {
 		_TextLength = 0;
 		_SlideBar = new MaterialSlideBar(this);
 		applyTheme();
-		setVerticalScrollBarEnabled(true);
 		setBlinkCursor(true);
 	}
 
@@ -375,7 +377,7 @@ public class VEdit extends View implements Runnable {
 
 	public void setShowLineNumber(boolean flag) {
 		_ShowLineNumber = flag;
-		invalidate();
+		postInvalidate();
 	}
 
 	public boolean isShowLineNumber() {
@@ -387,12 +389,12 @@ public class VEdit extends View implements Runnable {
 		if (Editable && _IMM != null)
 			_IMM.restartInput(this);
 		else hideIME();
-		invalidate();
+		postInvalidate();
 	}
 
 	public void setContentLeftPadding(float padding) {
 		_ContentLeftPadding = padding;
-		invalidate();
+		postInvalidate();
 	}
 
 	public float getContentLeftPadding() {
@@ -423,7 +425,7 @@ public class VEdit extends View implements Runnable {
 
 	public void setTextAntiAlias(boolean flag) {
 		ContentPaint.setAntiAlias(flag);
-		invalidate();
+		postInvalidate();
 	}
 
 	// Recommend using "setScale" since "setTextSize" will clear the text width cache, which makes drawing slower
@@ -440,7 +442,7 @@ public class VEdit extends View implements Runnable {
 	public void setTheme(VEditTheme scheme) {
 		this._Theme = scheme;
 		applyTheme();
-		invalidate();
+		postInvalidate();
 	}
 
 	public VEditTheme getTheme() {
@@ -450,7 +452,7 @@ public class VEdit extends View implements Runnable {
 	public void setTABSpaceCount(int count) {
 		TABSpaceCount = count;
 		_CharWidths[CHAR_TAB] = TABSpaceCount * _CharWidths[CHAR_SPACE];
-		invalidate();
+		postInvalidate();
 	}
 
 	public int getTABSpaceCount() {
@@ -461,7 +463,7 @@ public class VEdit extends View implements Runnable {
 		_LinePaddingTop = top;
 		_LinePaddingBottom = bottom;
 		onFontChange();
-		invalidate();
+		postInvalidate();
 	}
 
 	public float getLinePaddingTop() {
@@ -511,7 +513,7 @@ public class VEdit extends View implements Runnable {
 			ret = true;
 		} else _SStart = st;
 		onSelectionUpdate();
-		invalidate();
+		postInvalidate();
 		return ret;
 	}
 
@@ -523,7 +525,7 @@ public class VEdit extends View implements Runnable {
 			ret = true;
 		} else _SEnd = en;
 		onSelectionUpdate();
-		invalidate();
+		postInvalidate();
 		return ret;
 	}
 
@@ -536,7 +538,7 @@ public class VEdit extends View implements Runnable {
 		_SStart = st;
 		_SEnd = en;
 		onSelectionUpdate();
-		invalidate();
+		postInvalidate();
 	}
 
 	public void moveCursor(int pos) {
@@ -544,7 +546,7 @@ public class VEdit extends View implements Runnable {
 		_CursorLine = findLine(pos);
 		_CursorColumn = pos - E[_CursorLine];
 		onSelectionUpdate();
-		invalidate();
+		postInvalidate();
 	}
 
 	public void moveCursor(int line, int column) {
@@ -556,7 +558,7 @@ public class VEdit extends View implements Runnable {
 		_CursorLine = line;
 		_CursorColumn = column;
 		onSelectionUpdate();
-		invalidate();
+		postInvalidate();
 	}
 
 	public void setMaxOverScroll(int x, int y) {
@@ -591,7 +593,7 @@ public class VEdit extends View implements Runnable {
 
 	public void setCursorWidth(float width) {
 		_CursorWidth = width;
-		invalidate();
+		postInvalidate();
 	}
 
 	public float getCursorWidth() {
@@ -926,6 +928,20 @@ public class VEdit extends View implements Runnable {
 		_EditActionStack.addAction(action);
 	}
 
+	public void replace(int st, int en, char[] cs, int cst, int cen) {
+		if (st > en) {
+			int tmp = en;
+			en = st;
+			st = tmp;
+		}
+		int line = findLine(en);
+		char[] cn = new char[cen - cst];
+		System.arraycopy(cs, cst, cn, 0, cn.length);
+		EditAction action = new EditAction.ReplaceAction(line, en - E[line], getChars(st, en), cn);
+		if (interceptEditAction(action)) return;
+		_EditActionStack.addAction(action);
+	}
+
 	public void moveCursorRelative(int count) {
 		count = Math.min(E[_CursorLine] + _CursorColumn + count, _TextLength);
 		_CursorLine = findLine(count);
@@ -1153,7 +1169,7 @@ public class VEdit extends View implements Runnable {
 						Scroller.fling(getScrollX(), getScrollY(), -speedX, -speedY, -_maxOSX, Integer.MAX_VALUE, -_maxOSY, _YScrollRange + _maxOSY);
 					else springBack();
 					SpeedCalc.clear();
-					invalidate();
+					postInvalidate();
 				}
 				return true;
 		}
@@ -1213,7 +1229,8 @@ public class VEdit extends View implements Runnable {
 	@Override
 	protected void onDraw(Canvas canvas) {
 		// Marks
-		long st = System.currentTimeMillis();
+		long st = 0;
+		if (C.LOG_TIME) st = System.currentTimeMillis();
 		final boolean showSelecting = isRangeSelecting();
 		final boolean showCursor = (!showSelecting) && Editable;
 		final float bottom = getScrollY() + getHeight() + YOffset;
@@ -1455,7 +1472,9 @@ public class VEdit extends View implements Runnable {
 
 	protected void onClick(float x, float y) {
 		long time = System.currentTimeMillis();
-		boolean dc = time - LastClickTime <= DOUBLE_CLICK_INTERVAL;
+		boolean dc = (time - LastClickTime <= DOUBLE_CLICK_INTERVAL) && (Math.abs(x - _lastClickX) <= DOUBLE_CLICK_RANGE) && (Math.abs(y - _lastClickY) <= DOUBLE_CLICK_RANGE);
+		_lastClickX = x;
+		_lastClickY = y;
 		LastClickTime = time;
 		int[] nc = getCursorByPosition(x, y);
 		_CursorLine = nc[0];
@@ -1867,7 +1886,7 @@ public class VEdit extends View implements Runnable {
 	}
 
 	public static class MaterialSlideBar extends SlideBar {
-		public static final int EXPAND_WIDTH = 15, COLLAPSE_WIDTH = 10;
+		public static final int EXPAND_WIDTH = 25, COLLAPSE_WIDTH = 20;
 		public static final int HEIGHT = 100;
 
 		private boolean expand;

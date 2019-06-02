@@ -9,6 +9,7 @@ import android.support.v7.view.ActionMode;
 import android.support.v7.widget.LinearLayoutCompat;
 import android.view.Menu;
 import android.view.MenuItem;
+import com.xsjiong.vedit.LoadingDialog;
 import com.xsjiong.vedit.R;
 import com.xsjiong.vedit.VEdit;
 
@@ -18,6 +19,7 @@ public class FindReplaceDialog extends AlertDialog {
 	private LinearLayoutCompat Layout;
 	private FindActionModeHelper _FHelper;
 	private ReplaceActionModeHelper _RHelper;
+	private LoadingDialog _Replacing;
 
 	public FindReplaceDialog(VEdit edit) {
 		super(edit.getContext());
@@ -35,6 +37,8 @@ public class FindReplaceDialog extends AlertDialog {
 		Layout.addView(EditReplace);
 		_FHelper = new FindActionModeHelper(D);
 		_RHelper = new ReplaceActionModeHelper(D);
+		_Replacing = new LoadingDialog(D.getContext());
+		_Replacing.setMessage("替换中");
 		setView(Layout);
 		setButton(DialogInterface.BUTTON_POSITIVE, "查找", new OnClickListener() {
 			@Override
@@ -86,20 +90,43 @@ public class FindReplaceDialog extends AlertDialog {
 		setButton(DialogInterface.BUTTON_NEUTRAL, "全部替换", new OnClickListener() {
 			@Override
 			public void onClick(DialogInterface dialog, int which) {
-				String s = EditFind.getText().toString();
-				if (s.length() == 0) return;
-				char[] Q = s.toCharArray();
-				char[] T = EditReplace.getText().toString().toCharArray();
-				int len = D.getTextLength() - Q.length;
-				final int delta = T.length - Q.length;
-				int time = 0;
-				for (int i = 0; i <= D.getTextLength() - Q.length; i++)
-					if (D.equal(i, Q)) {
-						D.replace(i, i + Q.length, T);
-						len += delta;
-						time++;
+				_Replacing.show();
+				new Thread() {
+					@Override
+					public void run() {
+						String s = EditFind.getText().toString();
+						if (s.length() == 0) return;
+						char[] Q = s.toCharArray();
+						char[] T = EditReplace.getText().toString().toCharArray();
+						int len = D.getTextLength();
+						final int delta = T.length - Q.length;
+						int time = 0;
+						int last = 0;
+						int my = 0;
+						final char[] ncs = new char[D.getTextLength()];
+						final char[] S = D.getRawChars();
+						for (int i = 0; i <= D.getTextLength() - Q.length; i++)
+							if (D.equal(i, Q)) {
+								System.arraycopy(S, last, ncs, my, i - last);
+								System.arraycopy(T, 0, ncs, my += (i - last), T.length);
+								my += T.length;
+								i = (last = i + Q.length) - 1;
+								len += delta;
+								time++;
+							}
+						System.arraycopy(S, last, ncs, my, D.getTextLength() - last);
+						final int len2 = len;
+						final String msg = "已替换" + time + "处";
+						UI.onUI(new Runnable() {
+							@Override
+							public void run() {
+								D.replace(0, ncs.length, ncs, 0, len2);
+								UI.toast(D.getContext(), msg);
+								_Replacing.dismiss();
+							}
+						});
 					}
-				UI.toast(D.getContext(), "已替换" + time + "处");
+				}.start();
 			}
 		});
 	}

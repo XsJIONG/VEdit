@@ -9,12 +9,12 @@ import android.content.Context;
 import android.content.DialogInterface;
 import android.content.res.Resources;
 import android.graphics.Color;
-import android.graphics.PorterDuff;
 import android.graphics.drawable.Drawable;
 import android.os.Build;
 import android.os.Handler;
 import android.os.Looper;
 import android.support.design.widget.Snackbar;
+import android.support.v4.graphics.drawable.DrawableCompat;
 import android.view.View;
 import android.view.Window;
 import android.view.WindowManager;
@@ -26,7 +26,7 @@ import java.lang.reflect.Field;
 public class UI {
 	public static int ThemeColor = 0xFF2196F3;
 	public static int AccentColor = 0xFFFFFFFF;
-	public static int IconColor = 0xFF8A8A8A;
+	public static int IconColor = 0xFFB3B3B3;
 
 	public static void tintStatusBar(Activity activity, int color) {
 		if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
@@ -72,15 +72,15 @@ public class UI {
 		}
 	}
 
-	public static Drawable tintDrawable(Context cx, int d, int color) {
-		Drawable dd = cx.getDrawable(d).mutate();
-		dd.setColorFilter(color, PorterDuff.Mode.SRC_IN);
-		return dd;
+	public static Drawable tintDrawable(Context cx, int res, int color) {
+		Drawable d = DrawableCompat.wrap(cx.getResources().getDrawable(res).mutate());
+		DrawableCompat.setTint(d, color);
+		return d;
 	}
 
 	public static Drawable tintDrawable(Drawable d, int color) {
-		d = d.mutate();
-		d.setColorFilter(color, PorterDuff.Mode.SRC_IN);
+		d = DrawableCompat.wrap(d);
+		DrawableCompat.setTint(d, color);
 		return d;
 	}
 
@@ -106,8 +106,26 @@ public class UI {
 		return ret;
 	}
 
+	public static void postPrint(final View container, final CharSequence cs) {
+		onUI(new Runnable() {
+			@Override
+			public void run() {
+				print(container, cs);
+			}
+		});
+	}
+
 	public static void print(View container, CharSequence cs) {
 		Snackbar.make(container, cs, Snackbar.LENGTH_SHORT).show();
+	}
+
+	public static void postToast(final Context cx, final CharSequence cs) {
+		onUI(new Runnable() {
+			@Override
+			public void run() {
+				toast(cx, cs);
+			}
+		});
 	}
 
 	public static void toast(Context cx, CharSequence cs) {
