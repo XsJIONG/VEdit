@@ -2,12 +2,12 @@ package com.xsjiong.vlexer;
 
 public class VJavaLexer extends VCommonLexer {
 	// 这里应该使用Lazy Build，因为可能有子类继承，那时我们应该让子类来Build这个tree（只需要重写getKeywordTrie）
-	private static Trie KEYWORD_TRIE = null;
+	private static VLexer.Trie KEYWORD_TRIE = null;
 
 	@Override
-	public Trie getKeywordTrie() {
+	public VLexer.Trie getKeywordTrie() {
 		if (KEYWORD_TRIE == null)
-			KEYWORD_TRIE = Trie.BuildTrie(
+			KEYWORD_TRIE = VLexer.Trie.BuildTrie(
 					"abstract", "assert", "boolean", "break", "byte", "case", "catch", "char", "class", "const", "continue", "default", "do",
 					"double", "else", "enum", "extends", "final", "finally", "float", "for", "goto", "if", "implements", "import", "instanceof",
 					"int", "interface", "long", "native", "new", "package", "private", "protected", "public", "return", "strictfp", "short",

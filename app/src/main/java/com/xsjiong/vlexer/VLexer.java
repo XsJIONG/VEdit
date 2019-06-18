@@ -5,8 +5,8 @@ import java.util.ArrayList;
 
 public abstract class VLexer {
 	public static final int EXPAND_SIZE = 128;
-	public static final int TOTAL_COUNT = 26;
-	public static final short TYPE_TAG_END = 25, TYPE_TAG_START = 24, TYPE_SIMPLE_TAG = 23, TYPE_PREPROCESSOR_COMMAND = 22, UNRESOLVED_TYPE = 21, TYPE_EOF = 20, TYPE_IDENTIFIER = 0, TYPE_KEYWORD = 1, TYPE_NUMBER = 2, TYPE_COMMENT = 3, TYPE_STRING = 4, TYPE_CHAR = 5, TYPE_OPERATOR = 6, TYPE_BOOLEAN = 7, TYPE_ASSIGNMENT = 8,
+	public static final int TOTAL_COUNT = 28;
+	public static final short TYPE_TABS = 27, TYPE_SPACES = 26, TYPE_TAG_END = 25, TYPE_TAG_START = 24, TYPE_SIMPLE_TAG = 23, TYPE_PREPROCESSOR_COMMAND = 22, UNRESOLVED_TYPE = 21, TYPE_EOF = 20, TYPE_IDENTIFIER = 0, TYPE_KEYWORD = 1, TYPE_NUMBER = 2, TYPE_COMMENT = 3, TYPE_STRING = 4, TYPE_CHAR = 5, TYPE_OPERATOR = 6, TYPE_BOOLEAN = 7, TYPE_ASSIGNMENT = 8,
 			TYPE_NULL = 9, TYPE_LEFT_PARENTHESIS = 10, TYPE_RIGHT_PARENTHESIS = 11, TYPE_LEFT_SQUARE_BRACKET = 12, TYPE_RIGHT_SQUARE_BRACKET = 13, TYPE_LEFT_BRACE = 14, TYPE_RIGHT_BRACE = 15, TYPE_SEMICOLON = 16,
 			TYPE_COLON = 17, TYPE_PERIOD = 18, TYPE_COMMA = 19, FAILED = -1;
 
@@ -250,11 +250,12 @@ public abstract class VLexer {
 		if (S == null) return;
 		short type;
 		while ((type = getNext()) != TYPE_EOF) {
-			if (++DS[0] == D.length)
-				expandDArray();
+			if (++DS[0] == D.length) expandDArray();
 			D[DS[0]] = type;
 			DS[DS[0]] = ST;
 		}
+		if (DS[0] + 1 == D.length) expandDArray();
+		DS[DS[0] + 1] = L;
 		_Parsed = true;
 	}
 

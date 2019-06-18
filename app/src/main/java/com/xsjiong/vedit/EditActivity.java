@@ -345,6 +345,28 @@ public class EditActivity extends BaseActivity implements VEdit.EditListener, Mu
 		this._ChooseFileListener = listener;
 	}
 
+	@Override
+	public void onBackPressed() {
+		if (!ContentManager.getCurrentEditData().saved) {
+			new AlertDialog.Builder(this).setTitle("提示").setMessage("你还没有保存，确定要退出吗？").setPositiveButton("保存并退出", new DialogInterface.OnClickListener() {
+				@Override
+				public void onClick(DialogInterface dialog, int which) {
+					SaveTab(ContentManager.getCurrentEditData(), new Runnable() {
+						@Override
+						public void run() {
+							finish();
+						}
+					});
+				}
+			}).setNeutralButton("退出", new DialogInterface.OnClickListener() {
+				@Override
+				public void onClick(DialogInterface dialog, int which) {
+					finish();
+				}
+			}).setCancelable(true).show();
+		} else finish();
+	}
+
 	private interface ChooseFileListener {
 		void onChoose(File f);
 	}

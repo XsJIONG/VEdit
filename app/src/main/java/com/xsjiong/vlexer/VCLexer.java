@@ -1,12 +1,12 @@
 package com.xsjiong.vlexer;
 
 public class VCLexer extends VCommonLexer {
-	private static Trie KEYWORD_TRIE = null;
+	private static VLexer.Trie KEYWORD_TRIE = null;
 
 	@Override
-	public Trie getKeywordTrie() {
+	public VLexer.Trie getKeywordTrie() {
 		if (KEYWORD_TRIE == null)
-			KEYWORD_TRIE = Trie.BuildTrie(
+			KEYWORD_TRIE = VLexer.Trie.BuildTrie(
 					"auto", "break", "case", "char", "const", "continue", "default", "do", "double", "else", "enum", "extern", "float", "for", "goto", "if", "int", "long", "restrict",
 					"register", "return", "short", "signed", "sizeof", "static", "struct", "switch", "typedef", "union", "unsigned", "void", "volatile", "while", "inline"
 			);

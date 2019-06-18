@@ -11,7 +11,6 @@ import android.os.Handler;
 import android.support.v7.app.AppCompatActivity;
 import android.support.v7.view.ActionMode;
 import android.text.InputType;
-import android.text.TextPaint;
 import android.util.AttributeSet;
 import android.util.Log;
 import android.util.TypedValue;
@@ -50,7 +49,7 @@ public class VEdit extends View implements Runnable {
 	// -----Fields------
 	// -----------------
 
-	protected TextPaint ContentPaint, LineNumberPaint;
+	protected Paint ContentPaint, LineNumberPaint;
 	protected Paint ColorPaint;
 	protected float YOffset;
 	protected float TextHeight;
@@ -122,10 +121,12 @@ public class VEdit extends View implements Runnable {
 		_minFling = config.getScaledMinimumFlingVelocity();
 		_touchSlop = config.getScaledTouchSlop();
 		_CBHelper = new ClipboardActionModeHelper(this);
-		ContentPaint = new TextPaint();
+		ContentPaint = new Paint();
 		ContentPaint.setAntiAlias(true);
-		LineNumberPaint = new TextPaint();
+		ContentPaint.setDither(false);
+		LineNumberPaint = new Paint();
 		LineNumberPaint.setAntiAlias(true);
+		LineNumberPaint.setDither(false);
 		LineNumberPaint.setColor(Color.BLACK);
 		LineNumberPaint.setTextAlign(Paint.Align.RIGHT);
 		setTextSize(50);
@@ -135,7 +136,7 @@ public class VEdit extends View implements Runnable {
 		ColorPaint.setStyle(Paint.Style.FILL);
 		ColorPaint.setDither(false);
 		setFocusable(true);
-		setFocusableInTouchMode(true);
+		setFocusableInTouchMode(false);
 		_IMM = (InputMethodManager) getContext().getSystemService(Context.INPUT_METHOD_SERVICE);
 		E[0] = 2;
 		E[1] = 0;
@@ -1552,10 +1553,9 @@ public class VEdit extends View implements Runnable {
 				sen = _SEnd;
 			} else {
 				sst = sen = getCursorPosition();
-				float x = 0;
-				for (int i = E[_CursorLine]; i < sst; i++) x += getCharWidth(S[i]);
 				float top = TextHeight * (_CursorLine - 1);
-				builder.setInsertionMarkerLocation(x, top, top + YOffset, top + TextHeight, CursorAnchorInfo.FLAG_HAS_VISIBLE_REGION);
+				float xo = (_ShowLineNumber ? LineNumberWidth + LINE_NUMBER_SPLIT_WIDTH : 0) + _ContentLeftPadding;
+				builder.setInsertionMarkerLocation(xo + _CursorHorizonOffset, top, top + YOffset, top + TextHeight, CursorAnchorInfo.FLAG_HAS_VISIBLE_REGION);
 			}
 			builder.setSelectionRange(sst, sen);
 			_IMM.updateCursorAnchorInfo(this, builder.build());
@@ -1579,8 +1579,8 @@ public class VEdit extends View implements Runnable {
 	// -----Temporary Fields-----
 	// --------------------------
 
-	// TODO 还有512个字符都塞不满屏幕的情况！
-	private char[] TMP = new char[512];
+	// TODO 还有64个字符都塞不满屏幕的情况！
+	private char[] TMP = new char[64];
 	private char[] TMP2 = new char[1];
 
 	// -----------------------

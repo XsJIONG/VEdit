@@ -5,9 +5,20 @@ public abstract class VCommonLexer extends VLexer {
 	}
 
 	protected short getNext() {
-		ReadSpaces();
 		if (P == L) return TYPE_EOF;
 		ST = P;
+		if (S[P] == ' ') {
+			do {
+				++P;
+			} while (P != L && S[P] == ' ');
+			return TYPE_SPACES;
+		}
+		if (S[P] == '\t') {
+			do {
+				++P;
+			} while (P != L && S[P] == '\t');
+			return TYPE_TABS;
+		}
 		if (isIdentifierStart(S[P])) {
 			int st = P;
 			do {

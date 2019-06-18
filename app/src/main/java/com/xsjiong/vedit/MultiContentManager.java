@@ -4,6 +4,7 @@ import android.content.Context;
 import android.support.v7.widget.AppCompatButton;
 import android.support.v7.widget.LinearLayoutCompat;
 import android.text.TextUtils;
+import android.util.Log;
 import android.view.View;
 import android.widget.HorizontalScrollView;
 import com.xsjiong.vedit.theme.VEditTheme;
